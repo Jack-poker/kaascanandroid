@@ -13,6 +13,16 @@ import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../Api/client.dart';
 
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
+const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+const Color deepNavy = Color(0xFF1A1F36);
+const Color softGray = Color(0xFF9CA3AF);
+const Color cloudWhite = Color(0xFFFAFBFC);
+const Color lightBlue = Color(0xFFE6F0FF);
+const Color successGreen = Color(0xFF10B981);
+const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -32,58 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // Check if the phone number is an Airtel number (starts with 073 or 072)
-    if (phoneNumber.startsWith('073') ||
-        phoneNumber.startsWith('072') ||
-        phoneNumber.startsWith('73') ||
-        phoneNumber.startsWith('72')) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            backgroundColor: myWhite,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Text(
-              "Ibaruramari ry'Imirongo ya MTN gusa",
-              style: TextStyle(
-                color: myColor,
-                fontFamily: "gilroy",
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            content: Text(
-              "Nyamuneka ukoreshe nimero ya MTN mu kwiyandikisha. Turi gukora ku buryo tuzashyiraho inkunga ya Airtel vuba.",
-              style: TextStyle(
-                color: myOpblue,
-                fontFamily: "gilroy",
-                fontSize: 16,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: myColor,
-                  textStyle: const TextStyle(
-                    fontFamily: 'gilroy',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                child: const Text("OK"),
-              ),
-            ],
-          );
-        },
-      );
-
-      return;
-    }
+    // Airtel numbers are now supported
 
     Loader.show(
       context,
@@ -101,9 +60,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       var result = await app.Signup("0${phoneController.value.nsn}");
       if (result.statusCode == 200 && result.data['status'] == "success") {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Registration successful")),
-          );
+          // Don't show success message yet - user still needs to set up PIN
+          // Success will be shown after PIN is created
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(

@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
 import 'package:kaascan/Auth/login_new.dart';
 import 'package:kaascan/Auth/pinAuth.dart';
-import 'package:kaascan/dashboard/transactions.dart';
-import 'package:kaascan/main.dart';
-import 'package:kaascan/onBoradingScreen.dart';
 import 'package:phone_form_field/phone_form_field.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../Api/client.dart';
+import '../services/language_service.dart';
+import '../screens/language_selector_screen.dart';
+
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
+const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+const Color deepNavy = Color(0xFF1A1F36);
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -26,35 +28,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _handleSignup() async {
     String phoneNumber = phoneController.value.nsn;
 
+    // Normalize: if user enters 10 digits (e.g., 078...) instead of 9, strip the leading 0
+    if (phoneNumber.startsWith('0') && phoneNumber.length == 10) {
+      phoneNumber = phoneNumber.substring(1);
+    }
+
     if (phoneNumber.isEmpty) {
-      _showDialog(
-        title: "Nimero y'itumanaho irabuze",
-        message: "Nyamuneka injiza nimero ya telefoni kugira ngo ukomeze.",
+      _showModernDialog(
+        title: languageService.t(
+          'errors.missing_phone',
+          fallback: "Nimero irabuze",
+        ),
+        message: languageService.t(
+          'errors.enter_phone',
+          fallback: "Nyamuneka injiza nimero ya telefoni kugira ngo ukomeze.",
+        ),
         isError: true,
       );
       return;
     }
 
-    // Airtel block
-    if (phoneNumber.startsWith('073') ||
-        phoneNumber.startsWith('072') ||
-        phoneNumber.startsWith('73') ||
-        phoneNumber.startsWith('72')) {
-      _showDialog(
-        title: "Nimero zemewe gusa",
-        message:
-            "Ubu kwiyandikisha birashoboka gusa ku mirongo ya MTN.\n\nInkunga ya Airtel izashyirwaho vuba.",
-        isError: true,
-      );
-      return;
-    }
+    // Airtel numbers are now supported
 
     Loader.show(
       context,
       progressIndicator: LoadingAnimationWidget.discreteCircle(
-        secondRingColor: myOpblue,
-        thirdRingColor: myColor,
-        color: myWhite,
+        color: myColor,
         size: 60,
       ),
     );
@@ -64,77 +63,87 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await tempStorage.setBool("logged_in", false);
 
       var app = backendClient();
-      var result = await app.Signup("0${phoneController.value.nsn}");
-      print("Signup Response Number: 0${phoneController.value.nsn}");
-
-      // Save phone number to SharedPreferences
+      var result = await app.Signup("0$phoneNumber");
 
       if (result.statusCode == 200 || result.statusCode == 201) {
         final status = result.data['status'];
 
         if (status == "success") {
           Loader.hide();
-          _showDialog(
-            title: "Kwiyandikisha Byagenze Neza 🎉",
-            message:
-                "Konti yawe yashyizweho neza. Syiramo nimero yawe ya telefoni kugira ngo winjire.",
-            isError: false,
-            onConfirm: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      loginScreen(),
-                ),
-              );
-            },
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => pinScreen(phonenumber: "0$phoneNumber"),
+            ),
           );
         } else if (status == "exists") {
           Loader.hide();
-          _showDialog(
-            title: "Mufite Konti 🎯",
-            message:
-                "Musanzwe mufite konti. Nyamuneka mwinjire mukoresheje PIN.",
+          _showModernDialog(
+            title: languageService.t(
+              'auth.account_exists_title',
+              fallback: "Mufite Konti 🎯",
+            ),
+            message: languageService.t(
+              'auth.account_exists_message',
+              fallback:
+                  "Musanzwe mufite konti. Nyamuneka mwinjire mukoresheje PIN.",
+            ),
             isError: false,
             onConfirm: () {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => loginScreen()),
+                MaterialPageRoute(builder: (context) => const loginScreen()),
               );
             },
           );
         } else {
           Loader.hide();
-          _showDialog(
-            title: "Kwiyandikisha Ntibyagenze",
-            message:
-                "Kwiyandikisha ntibyashobotse. Gerageza kongera cyangwa saba ubufasha.",
+          _showModernDialog(
+            title: languageService.t(
+              'errors.registration_failed',
+              fallback: "Ntibyakunze",
+            ),
+            message: languageService.t(
+              'errors.registration_failed_message',
+              fallback:
+                  "Kwiyandikisha ntibyashobotse. Gerageza kongera cyangwa saba ubufasha.",
+            ),
             isError: true,
           );
         }
       } else {
         Loader.hide();
-        _showDialog(
-          title: "Ikosa mu itumanaho",
-          message:
-              "Ntibyakunze kugera kuri seriveri. Nyamuneka ongera ugerageze nyuma.",
+        _showModernDialog(
+          title: languageService.t(
+            'errors.network_error',
+            fallback: "Itumanaho ryapfuye",
+          ),
+          message: languageService.t(
+            'errors.network_error_message',
+            fallback:
+                "Ntibyakunze kugera kuri seriveri. Nyamuneka ongera ugerageze nyuma.",
+          ),
           isError: true,
         );
       }
     } catch (e) {
       Loader.hide();
-      _showDialog(
-        title: "Ikosa Ryabaye",
-        message: "Habaye ikosa mu kwiyandikisha: $e",
+      _showModernDialog(
+        title: languageService.t(
+          'errors.error_occurred',
+          fallback: "Ikosa Ryabaye",
+        ),
+        message: languageService.t(
+          'errors.registration_error',
+          params: {'error': e.toString()},
+          fallback: "Habaye ikosa mu kwiyandikisha: $e",
+        ),
         isError: true,
       );
-    } finally {
-      Loader.hide();
     }
   }
 
-  /// 🔹 Reusable beautiful dialog
-  void _showDialog({
+  void _showModernDialog({
     required String title,
     required String message,
     bool isError = false,
@@ -142,67 +151,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: myWhite,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Icon(
-                isError ? Icons.error_outline : Icons.check_circle_outline,
-                color: isError ? Colors.redAccent : myColor,
-                size: 26,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: myColor,
-                    fontFamily: "gilroy",
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            message,
-            style: TextStyle(
-              color: myOpblue,
-              fontFamily: "gilroy",
-              fontSize: 16,
+      builder: (context) => AlertDialog(
+        backgroundColor: deepNavy,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(
+              isError
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_outline_rounded,
+              color: isError ? Colors.redAccent : Colors.tealAccent,
+              size: 28,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                if (onConfirm != null) onConfirm();
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: myColor,
-                textStyle: const TextStyle(
-                  fontFamily: 'gilroy',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                color: myWhite,
+                fontWeight: FontWeight.bold,
+                fontFamily: "gilroy-light",
               ),
-              child: const Text("OK"),
             ),
           ],
-        );
-      },
+        ),
+        content: Text(
+          message,
+          style: TextStyle(
+            color: myWhite.withOpacity(0.7),
+            fontFamily: "gilroy-light",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (onConfirm != null) onConfirm();
+            },
+            child: const Text(
+              "OK",
+              style: TextStyle(color: myColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   void initState() {
     super.initState();
-    phoneController.value = PhoneNumber(nsn: '', isoCode: IsoCode.RW);
+    phoneController.value = const PhoneNumber(nsn: '', isoCode: IsoCode.RW);
   }
 
   @override
@@ -215,225 +213,423 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset:
-          true, // Ensures content resizes when keyboard appears
-      body: SingleChildScrollView(
-        // Makes content scrollable to prevent overflow
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [myWhite, myColor],
-              stops: const [0.5, 0.5],
+      backgroundColor: const Color.fromARGB(255, 194, 202, 252),
+      body: Stack(
+        children: [
+          _buildBackground(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  const SizedBox(height: 60),
+                  _buildHeader(),
+                  const SizedBox(height: 40),
+                  _buildGlassIsland(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          languageService.t(
+                            'auth.sign_up',
+                            fallback: "Iyandikishe",
+                          ),
+                          style: TextStyle(
+                            color: myColor,
+                            fontSize: 32,
+                            fontFamily: "gilroy",
+                            // fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          languageService.t(
+                            'auth.register_subtitle',
+                            fallback:
+                                "Ishyiramo nimero yawe kugira ngo utangire",
+                          ),
+                          style: TextStyle(
+                            color: myColor,
+                            fontSize: 14,
+                            fontFamily: "gilroy-light",
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        _buildPhoneInput(),
+                        const SizedBox(height: 24),
+                        _buildPrivacyInfo(),
+                        const SizedBox(height: 32),
+                        _buildRegisterButton(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  _buildFooterLink(),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
-          child: Column(
-            children: [
-              Container(
-                width: MediaQuery.sizeOf(context).width,
-                height: MediaQuery.sizeOf(context).height / 2,
-                decoration: BoxDecoration(
-                  image: const DecorationImage(
-                    image: AssetImage("assets/images/money.png"),
-                    opacity: 0.2,
-                  ),
-                  color: myColor,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(40),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(80),
-                      child: Column(
-                        children: [
-                          Image.asset("assets/images/white_logo.png", scale: 6),
-                          Text(
-                            "Iyandikishe hano",
-                            style: TextStyle(
-                              color: myWhite,
-                              fontFamily: "gilroy",
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          Text(
-                            "“Kurinda, gukunda no kwita ku bana bacu hamwe.”",
-                            style: TextStyle(
-                              color: myWhite.withOpacity(0.4),
-                              fontSize: 12,
-                              fontFamily: "gilroy",
-                              decorationColor: const Color.fromARGB(
-                                0,
-                                200,
-                                55,
-                                55,
-                              ), // Makes underline invisible
-                              decorationStyle: TextDecorationStyle.solid,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // const Expanded(
-                    //   child: Align(
-                    //     child: Text(
-                    //       "Iyandikishe hano",
-                    //       style: TextStyle(
-                    //         color: Colors.amberAccent,
-                    //         fontFamily: "gilroy",
-                    //         fontSize: 24,
-                    //         decoration: TextDecoration.none,
-                    //       ),
-                    //     ),
-                    //   ),
-                    // ),
-                  ],
-                ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            right: 20,
+            child: _buildLanguageSelector(),
+          ),
+          // Positioned(
+          //   bottom: 30,
+          //   left: 0,
+          //   right: 0,
+          //   child: _buildFintechFooter(),
+          // ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFintechFooter() {
+    return Column(
+      children: [
+        Text(
+          languageService.t(
+            'auth.trusted_parents',
+            fallback: "Trusted by 10,000+ parents across Rwanda",
+          ),
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.4),
+            fontSize: 10,
+            fontFamily: "gilroy-light",
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.verified_user_outlined,
+              color: Colors.white70,
+              size: 14,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              languageService.t(
+                'auth.secure_encryption',
+                fallback: "SSL 256-bit Encrypted Security",
               ),
-              Container(
-                decoration: BoxDecoration(
-                  color: myWhite,
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(40),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 11,
+                fontFamily: "gilroy-light",
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildSmallBadge("PCI DSS"),
+            const SizedBox(width: 8),
+            _buildSmallBadge("ISO 27001"),
+            const SizedBox(width: 8),
+            _buildSmallBadge(
+              languageService.t(
+                'auth.bank_grade_security',
+                fallback: "BANK-GRADE",
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmallBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        border: Border.all(color: Colors.white.withOpacity(0.15)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white38,
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageSelector() {
+    final currentLang = languageService.getCurrentLanguage();
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LanguageSelectorScreen(),
+              ),
+            );
+            if (result == true && mounted) {
+              setState(() {}); // Refresh UI
+            }
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  currentLang?.flagEmoji ?? '🇷🇼',
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  currentLang?.code.toUpperCase() ?? 'RW',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontFamily: "gilroy-light",
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                width: MediaQuery.sizeOf(context).width,
-                height: MediaQuery.sizeOf(context).height / 2,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 50),
-                    Material(
-                      color: myWhite,
-                      child: PhoneFormField(
-                        focusNode: FocusNode(),
-                        controller: phoneController,
-                        autofocus: false,
-                        isCountryButtonPersistent: true,
-                        decoration: InputDecoration(
-                          fillColor: Colors.transparent,
-                          focusColor: Colors.transparent,
-                          border: InputBorder.none,
-                          hintText: "Nimero yawe ya MTN",
-                          hintStyle: TextStyle(
-                            fontFamily: "gilroy",
-                            color: myColor,
-                            fontSize: 16,
-                          ),
-                        ),
-                        style: TextStyle(
-                          color: myColor,
-                          fontFamily: "gilroy",
-                          fontSize: 35,
-                        ),
-                        countryButtonStyle: CountryButtonStyle(
-                          textStyle: TextStyle(
-                            color: myColor,
-                            fontFamily: "gilroy",
-                            fontSize: 40,
-                          ),
-                          showFlag: true,
-                          dropdownIconColor: myColor,
-                        ),
-                        isCountrySelectionEnabled: false,
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.info, color: myColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          "Amakuru yawe bwite azagirwa ibanga\n kandi arindwe neza.Ntuzigere usangira konti yawe n'undi\n muntu uwo ari we wese.",
-                          style: TextStyle(
-                            color: myOpblue,
-                            fontFamily: "gilroy",
-                            fontSize: 10,
-                            decoration: TextDecoration.none,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 40),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          "Usanzwe ufite konti?",
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black,
-                            fontFamily: 'gilroy',
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => loginScreen(),
-                              ),
-                            );
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: const Color.fromARGB(255, 1, 4, 45),
-                            textStyle: const TextStyle(
-                              fontFamily: 'gilroy',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          child: const Text(
-                            "Injira",
-                            style: TextStyle(
-                              decoration: TextDecoration.underline,
-                              fontFamily: "gilroy",
-                              decorationStyle: TextDecorationStyle.solid,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 40),
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: myColor,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                            ),
-                            icon: Icon(Icons.lock, color: myWhite),
-                            onPressed: _handleSignup,
-                            label: Text(
-                              "Kwiyandikisha",
-                              style: TextStyle(
-                                color: myWhite,
-                                fontFamily: 'gilroy',
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBackground() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(color: Color.fromARGB(255, 255, 60, 0)),
+      child: Stack(
+        children: [
+          // Positioned(
+          //   top: -100,
+          //   right: -100,
+          //   child: _buildBlurCircle(300, myColor),
+          // ),
+          // Positioned(
+          //   bottom: -50,
+          //   left: -50,
+          //   child: _buildBlurCircle(250, myColor.withOpacity(0.2)),
+          // ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Hero(
+          tag: 'logo',
+          child: Image.asset("assets/images/white_logo.png", scale: 3.5),
+        ),
+        // const SizedBox(height: 20),
+        // Text(
+        //   "“Kurinda, gukunda no kwita ku bana bacu hamwe.”",
+        //   textAlign: TextAlign.center,
+        //   style: TextStyle(
+        //     color: const Color.fromARGB(109, 72, 72, 72),
+        //     fontSize: 12,
+        //     fontFamily: "gilroy-light",
+        //   ),
+        // ),
+      ],
+    );
+  }
+
+  Widget _buildGlassIsland({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [myWhite, myWhite, myWhite, myWhite, myWhite],
+        ),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(
+          color: const Color.fromARGB(0, 255, 255, 255),
+          width: 1,
+        ),
+        boxShadow: [
+          // BoxShadow(color: Color.fromARGB(255, 191, 210, 255), blurRadius: 3),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildPhoneInput() {
+    return Container(
+      decoration: BoxDecoration(
+        color: myWhite.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: myWhite.withOpacity(0.1), width: 1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: PhoneFormField(
+          controller: phoneController,
+          autofocus: false,
+          isCountryButtonPersistent: true,
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            hintText: languageService.t(
+              'auth.phone_number',
+              fallback: "Nimero ya telefoni",
+            ),
+            hintStyle: TextStyle(
+              fontFamily: "gilroy-light",
+              color: Color.fromARGB(255, 255, 60, 0).withOpacity(0.4),
+              fontSize: 16,
+            ),
+          ),
+          style: const TextStyle(
+            color: myColor,
+            fontFamily: "gilroy-light",
+            fontSize: 24,
+            fontWeight: FontWeight.w100,
+          ),
+          countryButtonStyle: CountryButtonStyle(
+            textStyle: const TextStyle(
+              color: myColor,
+              fontFamily: "gilroy-light",
+              fontSize: 24,
+              fontWeight: FontWeight.w100,
+              shadows: [],
+            ),
+            showFlag: true,
+            dropdownIconColor: Color.fromARGB(255, 255, 60, 0),
+          ),
+          isCountrySelectionEnabled: false,
+          keyboardType: TextInputType.number,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyInfo() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.shield_outlined, color: myColor, size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            languageService.t(
+              'auth.privacy_info_register',
+              fallback:
+                  "Amakuru yawe bwite azagirwa ibanga kandi arindwe neza. Ntuzigere usangira konti yawe n'undi muntu.",
+            ),
+            style: TextStyle(
+              color: myColor,
+              fontFamily: "gilroy-light",
+              fontSize: 11,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegisterButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 64,
+      child: ElevatedButton(
+        onPressed: _handleSignup,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color.fromARGB(255, 255, 60, 0),
+          foregroundColor: myWhite,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              languageService.t('auth.sign_up', fallback: "Kwiyandikisha"),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                fontFamily: "gilroy-light",
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.arrow_forward_rounded, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterLink() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          languageService.t(
+            'auth.already_have_account',
+            fallback: "Usanzwe ufite konti? ",
+          ),
+          style: TextStyle(
+            color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.7),
+            fontFamily: 'gilroy-light',
+          ),
+        ),
+        GestureDetector(
+          onTap: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const loginScreen()),
+            );
+          },
+          child: Text(
+            languageService.t('auth.login', fallback: "Injira"),
+            style: TextStyle(
+              color: const Color.fromARGB(255, 255, 140, 0),
+              fontWeight: FontWeight.bold,
+              fontFamily: "gilroy-light",
+              // decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

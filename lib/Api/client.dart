@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +15,7 @@ import 'package:http/http.dart' as http;
 
 final api_Call = Dio();
 final base_Url = "$Base_Url";
+final app = backendClient();
 
 class backendClient {
   Future<Response> csrfToken() async {
@@ -24,24 +27,27 @@ class backendClient {
     }
   }
 
-  Future<Response> Signup(phonenumber) async {
-    print(phonenumber);
+  Future<Response> Signup(phonenumber, {String role = "parent", String? name}) async {
+    // print(phonenumber);
     var tempStorage = await SharedPreferences.getInstance();
-    var device_id = await tempStorage.getString('device_id');
-    print(device_id);
-    var fcm_token = await tempStorage.getString('fcm_token');
+    var device_id = await tempStorage.getString('device_id') ?? "unknown_device";
+    // print(device_id);
+    var fcm_token = await tempStorage.getString('fcm_token') ?? "";
     var cToken = await csrfToken();
     var token = cToken.data['csrf_token'];
-    print(token);
+    // print(token);
+    var endpoint = (role == "merchant") ? "/register/merchant" : "/register/parent";
     try {
       var register = await api_Call.post(
-        "$base_Url/register/parent",
+        "$base_Url$endpoint",
         options: Options(headers: {"x-csrf-token": token}),
         data: {
-          "phone_number": phonenumber,
+          "phone_number": phonenumber.toString(),
           "csrf_token": token,
           'device_id': device_id,
           'fcm_token': fcm_token,
+          'role': role,
+          'name': name,
         },
       );
 
@@ -54,19 +60,23 @@ class backendClient {
   Future<Response> Login(
     BuildContext context,
     String phoneNumber,
-    String pin,
-  ) async {
+    String pin, {
+    bool isPin = false,
+    String role = "parent",
+  }) async {
     var cToken = await csrfToken();
     var token = cToken.data['csrf_token'];
 
+    var endpoint = (role == "merchant") ? "/login/merchant" : "/login/parent";
     try {
       var login = await api_Call.post(
-        "$base_Url/login/parent",
+        "$base_Url$endpoint",
         options: Options(headers: {"x-csrf-token": token}),
         data: {
           "phone_number": phoneNumber,
           "csrf_token": token,
-          "totp_code": pin,
+          "totp_code": (!isPin && pin.length == 4) ? pin : null,
+          "pin": isPin ? pin : (pin.length == 6 ? pin : null),
         },
       );
 
@@ -137,7 +147,7 @@ class backendClient {
       );
       return resetPin;
     } catch (e) {
-      throw ("[FAIL] RESET STUDENT PIN FAILED: $e");
+      throw Exception("[FAIL] RESET STUDENT PIN FAILED: $e");
     }
   }
 
@@ -221,6 +231,36 @@ class backendClient {
     return deposit;
   }
 
+  Future<Response> districtStudentDeposit(
+    String xtoken,
+    String token,
+    double amount,
+    String studentId,
+    String description,
+  ) async {
+    try {
+      var res = await api_Call.post(
+        "$base_Url/deposit/student",
+        options: Options(headers: {
+          "x-csrf-token": xtoken,
+          "authorization": "Bearer $token"
+        }),
+        data: {
+          "student_id": studentId,
+          "amount": amount,
+          "latitude": 0.0,
+          "longitude": 0.0,
+          "receiver_phone": "", // Not needed for deposit
+          "description": description,
+          "csrf_token": xtoken,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] DIRECT STUDENT DEPOSIT: $e");
+    }
+  }
+
   Future<Map<String, dynamic>> walletWithdraw(
     String xtoken,
     String token,
@@ -228,17 +268,14 @@ class backendClient {
     String otpCode,
     String phone,
   ) async {
-    
-    // final url = Uri.parse("$base_Url/wallet/confirm-withdraw");
-    final url = Uri.parse("https://automation.kaascan.com/webhook/cashout");
-
+    final url = Uri.parse(N8n_Parent_Withdraw_Url);
     try {
       final response = await http.post(
         url,
         headers: {
           "x-csrf-token": xtoken,
           "authorization": "Bearer $token",
-          "Content-Type": "application/json", // usually good to specify
+          "Content-Type": "application/json",
         },
         body: jsonEncode({
           "phone": phone,
@@ -247,25 +284,130 @@ class backendClient {
           "csrf_token": xtoken,
         }),
       );
-
-      // Decode JSON response
       final data = jsonDecode(response.body);
-
-      // Return a Map containing statusCode and data for easier usage
       return {"statusCode": response.statusCode, "data": data};
-    } catch (e) {
-      print("Error in walletWithdraw: $e");
-      // Return an error response structure to handle gracefully
+    } on SocketException {
+      return {
+        "statusCode": 0,
+        "data": {
+          "success": false,
+          "status": "failed",
+          "message": "Nta internet. Reba ko ufite internet wongere ugerageze.",
+          "responsecode": "NETWORK_ERROR",
+        },
+      };
+    } on TimeoutException {
+      return {
+        "statusCode": 0,
+        "data": {
+          "success": false,
+          "status": "failed",
+          "message": "Igihe cyarangiye. Ongera ugerageze.",
+          "responsecode": "TIMEOUT_ERROR",
+        },
+      };
+    } on FormatException {
       return {
         "statusCode": 500,
         "data": {
+          "success": false,
+          "status": "failed",
+          "message": "Habaye ikosa rya server. Ongera ugerageze nyuma.",
+          "responsecode": "FORMAT_ERROR",
+        },
+      };
+    } catch (e) {
+      return {
+        "statusCode": 500,
+        "data": {
+          "success": false,
+          "status": "failed",
+          "message": "Ikosa rya server ryabaye. Ongera ugerageze nyuma.",
+          "responsecode": "UNKNOWN_ERROR",
+        },
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> merchantWithdraw(
+    String xtoken,
+    String token,
+    double withdrawAmount,
+    String phone,
+  ) async {
+    final url = Uri.parse(N8n_Merchant_Withdraw_Url);
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "x-csrf-token": xtoken,
+          "authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "phone": phone,
+          "amount": withdrawAmount,
+          "csrf_token": xtoken,
+          "role": "merchant",
+        }),
+      );
+      final data = jsonDecode(response.body);
+      return {"statusCode": response.statusCode, "data": data};
+    } catch (e) {
+      return {
+        "statusCode": 500,
+        "data": {
+          "success": false,
           "status": "failed",
           "message": "Ikosa rya server ryabaye. Ongera ugerageze nyuma.",
         },
       };
     }
   }
-  
+
+  Future<Map<String, dynamic>> merchantRequestPayout(
+    String xtoken,
+    String token,
+    double amount,
+    String phone,
+  ) async {
+    try {
+      final response = await api_Call.post(
+        "$base_Url/merchant/request-payout",
+        options: Options(headers: {
+          "x-csrf-token": xtoken,
+          "authorization": "Bearer $token",
+        }),
+        data: {
+          "phone": phone,
+          "amount": amount,
+          "csrf_token": xtoken,
+          "role": "merchant",
+        },
+      );
+      return {"statusCode": response.statusCode, "data": response.data};
+    } catch (e) {
+      return {
+        "statusCode": 500,
+        "data": {
+          "success": false,
+          "message": "Failed to request payout",
+        },
+      };
+    }
+  }
+
+  Future<Response> getMerchantPayouts(String token) async {
+    try {
+      var payouts = await api_Call.get(
+        "$base_Url/merchant/payouts",
+        options: Options(headers: {"authorization": "Bearer $token"}),
+      );
+      return payouts;
+    } catch (e) {
+      throw Exception("[FAIL] FETCH MERCHANT PAYOUTS: $e");
+    }
+  }
 
   Future<Response> requestWithdrawotp(
     xtoken,
@@ -295,7 +437,7 @@ class backendClient {
     }
   }
 
-  Future<Response> walletTansactions(token) async {
+  Future<Response> walletTransactions(token) async {
     try {
       var transactions = await api_Call.get(
         "$base_Url/transactions/recent",
@@ -307,7 +449,7 @@ class backendClient {
     }
   }
 
-  Future<Response> DeleteStudent(student_id, token) async {
+  Future<Response> DeleteStudent(String student_id, String token) async {
     try {
       var studentDelete = await api_Call.delete(
         "$base_Url/students/$student_id",
@@ -315,7 +457,7 @@ class backendClient {
       );
       return studentDelete;
     } catch (e) {
-      throw ("[FAIL] DELETE STUDENT FAIL");
+      throw Exception("[FAIL] DELETE STUDENT FAIL $e");
     }
   }
 
@@ -345,12 +487,248 @@ class backendClient {
       );
       return linkedStudent;
     } catch (e) {
-      throw ("[FAIL] LINK STUDENT FAILED: $e");
+      throw Exception("[FAIL] LINK STUDENT FAILED: $e");
+    }
+  }
+
+  Future<Response> transferStudent(
+    xtoken,
+    token,
+    double amount,
+    String description,
+    String studentId,
+    String receiverPhone,
+  ) async {
+    try {
+      var transfer = await api_Call.post(
+        "$base_Url/transfer/student",
+        options: Options(headers: {
+          "Authorization": "Bearer $token",
+          "x-csrf-token": xtoken,
+        }),
+        data: {
+          "student_id": studentId,
+          "amount": amount,
+          "description": description,
+          "receiver_phone": receiverPhone,
+          "latitude": 0.0,
+          "longitude": 0.0,
+          "csrf_token": xtoken,
+        },
+      );
+      return transfer;
+    } catch (e) {
+      throw Exception("[FAIL] TRANSFER TO STUDENT FAILED: $e");
+    }
+  }
+
+  Future<Response> setPin(String token, String xtoken, String pin, {String role = "parent"}) async {
+    var endpoint = (role == "merchant") ? "/merchant/set-pin" : "/parent/set-pin";
+    try {
+      var res = await api_Call.post(
+        "$base_Url$endpoint",
+        options: Options(headers: {
+          "Authorization": "Bearer $token",
+          "x-csrf-token": xtoken,
+        }),
+        data: {
+          "pin": pin,
+          "csrf_token": xtoken,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] SET PIN FAILED: $e");
+    }
+  }
+
+  Future<Response> passwordResetRequest(String phone, {String role = "parent"}) async {
+    var cToken = await csrfToken();
+    var token = cToken.data['csrf_token'];
+    var endpoint = (role == "merchant") ? "/merchant/password-reset/request" : "/parent/password-reset/request";
+    try {
+      var res = await api_Call.post(
+        "$base_Url$endpoint",
+        options: Options(headers: {"x-csrf-token": token}),
+        data: {
+          "phone_number": phone,
+          "csrf_token": token,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] RESET REQUEST FAILED: $e");
+    }
+  }
+
+  Future<Response> passwordResetVerify(String phone, String otp, String newPin, {String role = "parent"}) async {
+    var cToken = await csrfToken();
+    var token = cToken.data['csrf_token'];
+    var endpoint = (role == "merchant") ? "/merchant/password-reset/verify" : "/parent/password-reset/verify";
+    try {
+      var res = await api_Call.post(
+        "$base_Url$endpoint",
+        options: Options(headers: {"x-csrf-token": token}),
+        data: {
+          "phone_number": phone,
+          "otp_code": otp,
+          "new_password": newPin,
+          "csrf_token": token,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] RESET VERIFY FAILED: $e");
+    }
+  }
+
+  // --- POS / CARD METHODS ---
+  Future<Response> getStudentByCard(String cardId) async {
+    try {
+      var res = await api_Call.get("$base_Url/student/by-card/$cardId");
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] GET STUDENT BY CARD: $e");
+    }
+  }
+
+  Future<Response> getStudentById(String studentId) async {
+    try {
+      var res = await api_Call.get("$base_Url/student/by-id/$studentId");
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] GET STUDENT BY ID: $e");
+    }
+  }
+
+  Future<Response> chargeStudent({
+    required String xtoken,
+    required String token,
+    required String studentId,
+    required double amount,
+    required String pin,
+  }) async {
+    try {
+      var res = await api_Call.post(
+        "$base_Url/merchant/charge",
+        options: Options(headers: {
+          "x-csrf-token": xtoken,
+          "authorization": "Bearer $token"
+        }),
+        data: {
+          "student_id": studentId,
+          "amount": amount,
+          "pin": pin,
+          "csrf_token": xtoken,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] CHARGE STUDENT: $e");
+    }
+  }
+
+  Future<Response> chargeStudentByCard({
+    required String cardId,
+    required double amount,
+    required String merchantId,
+    String? pin,
+    String? description,
+  }) async {
+    try {
+      var res = await api_Call.post(
+        "$base_Url/merchant/charge/card",
+        data: {
+          "card_id": cardId,
+          "amount": amount,
+          "merchant_id": merchantId,
+          "pin": pin,
+          "description": description,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] CHARGE STUDENT BY CARD: $e");
+    }
+  }
+
+  Future<Response> syncStudents({
+    required String schoolName,
+    String? lastSync,
+    required String xtoken,
+    required String token,
+  }) async {
+    try {
+      return await api_Call.post(
+        "$base_Url/sync/students",
+        options: Options(headers: {"x-csrf-token": xtoken, "Authorization": "Bearer $token"}),
+        data: {
+          "school_name": schoolName,
+          "last_sync": lastSync,
+          "csrf_token": xtoken,
+        },
+      );
+    } catch (e) {
+      throw Exception("[FAIL] SYNCING STUDENTS $e");
+    }
+  }
+
+  Future<Response> syncOfflinePayments({
+    required String merchantId,
+    required List<Map<String, dynamic>> transactions,
+    required String xtoken,
+    required String token,
+  }) async {
+    try {
+      return await api_Call.post(
+        "$base_Url/sync/offline-payments",
+        options: Options(headers: {"x-csrf-token": xtoken, "Authorization": "Bearer $token"}),
+        data: {
+          "merchant_id": merchantId,
+          "transactions": transactions,
+          "csrf_token": xtoken,
+        },
+      );
+    } catch (e) {
+      throw Exception("[FAIL] SYNCING OFFLINE PAYMENTS $e");
+    }
+  }
+
+  Future<Response> submitKYC({
+    required String xtoken,
+    required String token,
+    required Map<String, dynamic> kycData,
+  }) async {
+    try {
+      var res = await api_Call.post(
+        "$base_Url/merchant/kyc",
+        options: Options(headers: {
+          "x-csrf-token": xtoken,
+          "authorization": "Bearer $token"
+        }),
+        data: {
+          ...kycData,
+          "csrf_token": xtoken,
+        },
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] SUBMIT KYC: $e");
+    }
+  }
+
+  Future<Response> getKYCStatus(String token) async {
+    try {
+      var res = await api_Call.get(
+        "$base_Url/merchant/kyc/status",
+        options: Options(headers: {"authorization": "Bearer $token"}),
+      );
+      return res;
+    } catch (e) {
+      throw Exception("[FAIL] GET KYC STATUS: $e");
     }
   }
 }
-
-var app = new backendClient();
 
 void main() async {
   //Getting the csrf token test

@@ -1,11 +1,12 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:kaascan/dashboard/home.dart';
-import 'package:kaascan/dashboard/transactions.dart';
 import 'package:kaascan/onBoradingScreen.dart';
-import 'package:sleek_circular_slider/sleek_circular_slider.dart';
-import 'package:splasher/splasher.dart';
+import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:lottie/lottie.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
+
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
 
 class Splashscreen extends StatefulWidget {
   const Splashscreen({super.key});
@@ -15,15 +16,14 @@ class Splashscreen extends StatefulWidget {
 }
 
 class _SplashscreenState extends State<Splashscreen> {
-  int _seconds = 8; // Start countdown from 5 seconds
+  int _seconds = 6;
   late Timer _timer;
 
   @override
   void initState() {
     super.initState();
 
-    // Start countdown timer
-    _timer = Timer.periodic(Duration(seconds: 1), (Timer timer) {
+    _timer = Timer.periodic(const Duration(seconds: 2), (Timer timer) {
       if (_seconds == 0) {
         _goToNextPage();
       } else {
@@ -38,77 +38,120 @@ class _SplashscreenState extends State<Splashscreen> {
     _timer.cancel();
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => Onboradingscreen()),
+      MaterialPageRoute(builder: (context) => const Onboradingscreen()),
     );
   }
 
   @override
   void dispose() {
-    _timer.cancel(); // Clean up timer when screen is disposed
+    _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: myColor,
-      body: Container(
-        padding: EdgeInsets.only(top: 150),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-              Text(
-                "Kaascan App",
-                style: TextStyle(
-                fontFamily: "gilroy",
-                fontSize: 40,
-                color: myWhite,
-                fontWeight: FontWeight.w100,
-                ),
-              ),
-              ],
-            ),
-            SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-              Text(
-                "Kohereza no kwakira amafaranga\n byoroshye ku banyeshuri n’ababyeyi",
-                style: TextStyle(
-                fontFamily: "gilroy",
-                fontSize: 12,
-                color: const Color.fromARGB(107, 255, 255, 255),
-                fontWeight: FontWeight.w300,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              ],
-            ),
+    const colorizeColors = [
+      Color.fromARGB(255, 255, 255, 255),
+      Color.fromARGB(255, 0, 94, 255),
+      Color.fromARGB(255, 255, 163, 59),
+      Color.fromARGB(255, 2, 155, 94),
+    ];
 
-            //loader
-            Container(
-              padding: EdgeInsets.only(bottom: 100),
-              child: Column(
-                children: [
-                  CircularProgressIndicator(strokeWidth: 4, color: myWhite),
-                  SizedBox(height: 10),
-                  Text(
-                    "Please Wait...",
+    const colorizeTextStyle = TextStyle(
+      fontSize: 50.0,
+      fontWeight: FontWeight.w900,
+      fontFamily: 'gilroy-light',
+    );
+
+    return Scaffold(
+      backgroundColor: Color.fromARGB(255, 255, 60, 0),
+      body: Stack(
+        children: [
+          // Main centered content
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: 200,
+                  child: AnimatedTextKit(
+                    animatedTexts: [
+                      ColorizeAnimatedText(
+                        'Kaascan',
+                        textStyle: colorizeTextStyle,
+                        colors: colorizeColors,
+                        speed: Durations.long1,
+                      ),
+                      ColorizeAnimatedText(
+                        'Quick',
+                        textStyle: colorizeTextStyle,
+                        colors: colorizeColors,
+                        speed: Durations.long1,
+                      ),
+                      ColorizeAnimatedText(
+                        'Smart',
+                        textStyle: colorizeTextStyle,
+                        colors: colorizeColors,
+                        speed: Durations.long1,
+                      ),
+                    ],
+                    isRepeatingAnimation: true,
+                    onTap: () {
+                      print("Tap Event");
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+                LoadingAnimationWidget.discreteCircle(
+                  color: Color.fromARGB(255, 0, 34, 255),
+                  size: 40,
+                ),
+              ],
+            ),
+          ),
+
+          // Minimal Professional Footer
+          Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "SECURE • SMART • RELIABLE",
+                  style: TextStyle(
+                    fontFamily: "gilroy",
+                    fontSize: 11,
+                    letterSpacing: 5,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    "v2.0.3 • Crafted with Excellence",
                     style: TextStyle(
-                      color: myWhite,
-                      fontFamily: "gilroy",
-                      fontWeight: FontWeight.w100,
+                      fontFamily: "gilroy-light",
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1A1F36).withOpacity(0.5),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

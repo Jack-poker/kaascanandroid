@@ -5,6 +5,16 @@ import 'package:kaascan/dashboard/home.dart';
 import 'package:kaascan/dashboard/transactions.dart';
 import 'package:kaascan/onBoradingScreen.dart';
 
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
+const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+const Color deepNavy = Color(0xFF1A1F36);
+const Color softGray = Color(0xFF9CA3AF);
+const Color cloudWhite = Color(0xFFFAFBFC);
+const Color lightBlue = Color(0xFFE6F0FF);
+const Color successGreen = Color(0xFF10B981);
+const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
+
 class scanAdd extends StatefulWidget {
   const scanAdd({super.key});
 

@@ -49,7 +49,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       final app = backendClient();
       final accountData = await app.Profile(accountToken);
       final balance = await app.walletBalance(accountToken);
-      final transactions = await app.walletTansactions(accountToken);
+      final transactions = await app.walletTransactions(accountToken);
       final students = await app.studentsLinked(accountToken);
 
       if (!mounted) return;

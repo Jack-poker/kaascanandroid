@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kaascan/components/transferScan.dart';
 import 'package:kaascan/dashboard/home.dart';
 import 'package:kaascan/dashboard/transactions.dart';
-import 'package:kaascan/onBoradingScreen.dart';
+import 'package:kaascan/onBoradingScreen.dart' hide myWhite;
 
 
 class Transfer extends StatefulWidget {

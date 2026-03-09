@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:kaascan/Api/client.dart';
 import 'package:kaascan/Auth/login_new.dart';
+import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:kaascan/Auth/pinAuth.dart';
 import 'package:kaascan/Auth/register.dart';
 import 'package:kaascan/dashboard/transactions.dart';
@@ -11,23 +12,29 @@ import 'package:kaascan/onBoradingScreen.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:phone_form_field/phone_form_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../screens/language_selector_screen.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import '../services/language_service.dart';
 
-
-
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
+const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+const Color deepNavy = Color(0xFF1A1F36);
+const Color softGray = Color(0xFF9CA3AF);
+const Color cloudWhite = Color(0xFFFAFBFC);
+const Color lightBlue = Color(0xFFE6F0FF);
+const Color successGreen = Color(0xFF10B981);
+const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
 
 class loginScreen extends StatefulWidget {
- 
   const loginScreen({super.key});
-  
+
   @override
-  State<loginScreen> createState()
-  {
+  State<loginScreen> createState() {
     return _loginScreenState();
   }
 }
-
 
 class _loginScreenState extends State<loginScreen> {
   final phoneController = PhoneController();
@@ -71,25 +78,27 @@ TAGS:${androidInfo.tags}
     bool? login_new = tempStorage.getBool("login_new");
 
     if (loggedInFlag == true) {
-      try {
-        // var app = new backendClient();
-        print(tempStorage.getString("phonenumber"));
-        tempStorage.setString(
-          "phonenumber",
-          tempStorage.getString("phonenumber")!,
-        );
-        var o = await app.Login(
+      final phoneNumber = tempStorage.getString("phonenumber");
+      final bool hasPin = tempStorage.getBool("has_pin") ?? false;
+
+      if (hasPin && phoneNumber != null) {
+        Navigator.pushReplacement(
           context,
-          tempStorage.getString("phonenumber")!,
-          "",
+          MaterialPageRoute(
+            builder: (context) => UnifiedAuthScreen(phoneNumber: phoneNumber),
+          ),
         );
-        // Added check for consistency with login button logic
+        return;
+      }
+
+      try {
+        if (phoneNumber == null) return;
+        var o = await app.Login(context, phoneNumber, "");
         if (o.statusCode == 200 && o.data['status'] == "success") {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  pinScreen(phonenumber: tempStorage.getString("phonenumber")!),
+              builder: (context) => pinScreen(phonenumber: phoneNumber),
             ),
           );
         } else {
@@ -97,15 +106,10 @@ TAGS:${androidInfo.tags}
             context,
             MaterialPageRoute(builder: (context) => RegisterScreen()),
           );
-
-          // Clear logged_in if verification fails
           tempStorage.setBool("logged_in", false);
-          print("Login verification failed");
         }
       } catch (e) {
         print("Error occured: $e");
-
-        // tempStorage.setBool("logged_in", false);
       }
     } else {
       print("Please login to continue");
@@ -116,6 +120,16 @@ TAGS:${androidInfo.tags}
       );
 
       // print("is Loggedin $isLoggedin");
+    }
+  }
+
+  void _showLanguagePicker() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LanguageSelectorScreen()),
+    );
+    if (result == true && mounted) {
+      setState(() {});
     }
   }
 
@@ -171,9 +185,8 @@ TAGS:${androidInfo.tags}
       return Scaffold(
         body: Center(
           child: LoadingAnimationWidget.discreteCircle(
-            secondRingColor: myOpblue,
-            thirdRingColor: myColor,
-            color: myWhite,
+            color: myColor,
+
             size: 60,
           ),
         ),
@@ -210,22 +223,64 @@ TAGS:${androidInfo.tags}
                 children: [
                   Container(
                     padding: EdgeInsets.all(40),
-                    child: Column(
+                    child: Stack(
                       children: [
-                        Image.asset("assets/images/white_logo.png", scale: 6),
-                        Text(
-                          "“Kurinda, gukunda no kwita ku bana bacu hamwe.”",
-                          style: TextStyle(
-                            color: myOpblue,
-                            fontSize: 20,
-                            fontFamily: "gilroy",
-                            decorationColor: const Color.fromARGB(
-                              0,
-                              200,
-                              55,
-                              55,
-                            ), // Makes underline invisible
-                            decorationStyle: TextDecorationStyle.solid,
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: TextButton.icon(
+                            onPressed: _showLanguagePicker,
+                            icon: const Icon(
+                              Icons.language,
+                              color: Colors.white,
+                            ),
+                            label: Text(
+                              languageService
+                                      .getCurrentLanguage()
+                                      ?.code
+                                      .toUpperCase() ??
+                                  "EN",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Center(
+                          child: Column(
+                            children: [
+                              Image.asset(
+                                "assets/images/white_logo.png",
+                                scale: 6,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                languageService.t(
+                                  'auth.motto',
+                                  fallback:
+                                      "“Kurinda, gukunda no kwita ku bana bacu hamwe.”",
+                                ),
+                                style: TextStyle(
+                                  color: myOpblue,
+                                  fontSize: 18,
+                                  fontFamily: "gilroy",
+                                  decorationColor: const Color.fromARGB(
+                                    0,
+                                    200,
+                                    55,
+                                    55,
+                                  ), // Makes underline invisible
+                                  decorationStyle: TextDecorationStyle.solid,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -234,17 +289,13 @@ TAGS:${androidInfo.tags}
                   Expanded(
                     child: Align(
                       child: Text(
-                        "Injira",
-                        style: TextStyle(
+                        languageService.t('auth.login', fallback: "Injira"),
+                        style: const TextStyle(
                           color: myWhite,
                           fontFamily: "gilroy",
-                          decorationColor: const Color.fromARGB(
-                            0,
-                            200,
-                            55,
-                            55,
-                          ), // Makes underline invisible
-                          decorationStyle: TextDecorationStyle.solid,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          decorationColor: Colors.transparent,
                         ),
                       ),
                     ),
@@ -263,7 +314,7 @@ TAGS:${androidInfo.tags}
                 children: [
                   SizedBox(height: 50),
                   Material(
-                    color: myWhite,
+                    color: Color.fromARGB(255, 255, 60, 0),
                     child: Container(
                       child: PhoneFormField(
                         focusNode: FocusNode(),
@@ -275,15 +326,15 @@ TAGS:${androidInfo.tags}
                           fillColor: Colors.transparent,
                           focusColor: Colors.transparent,
                           border: InputBorder.none,
-                          hint: Text(
-                            "Phonenumber",
-                            style: TextStyle(
-                              fontFamily: "gilroy",
-                              color: myColor,
-                              fontSize: 16,
-                            ),
+                          hintText: languageService.t(
+                            'auth.phone_number',
+                            fallback: "Phonenumber",
                           ),
-                          hintStyle: TextStyle(fontSize: 16),
+                          hintStyle: const TextStyle(
+                            fontFamily: "gilroy",
+                            color: myColor,
+                            fontSize: 16,
+                          ),
                         ),
                         style: TextStyle(
                           color: myColor,
@@ -312,19 +363,18 @@ TAGS:${androidInfo.tags}
                     children: [
                       Icon(Icons.info, color: myColor),
                       Text(
-                        "Amakuru yawe bwite azagirwa\n ibanga kandi arindwe neza.",
+                        languageService.t(
+                          'auth.privacy_message',
+                          fallback:
+                              "Amakuru yawe bwite azagirwa\n ibanga kandi arindwe neza.",
+                        ),
                         style: TextStyle(
                           color: myOpblue,
                           fontFamily: "gilroy",
-                          fontSize: 15,
-                          decorationColor: const Color.fromARGB(
-                            0,
-                            200,
-                            55,
-                            55,
-                          ), // Makes underline invisible
-                          decorationStyle: TextDecorationStyle.solid,
+                          fontSize: 14,
+                          decorationColor: Colors.transparent,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
@@ -333,9 +383,11 @@ TAGS:${androidInfo.tags}
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Nturagira konti? ",
-
-                        style: TextStyle(
+                        languageService.t(
+                          'auth.dont_have_account',
+                          fallback: "Nturagira konti? ",
+                        ),
+                        style: const TextStyle(
                           fontSize: 16,
                           color: Colors.black,
                           fontFamily: 'gilroy',
@@ -360,7 +412,12 @@ TAGS:${androidInfo.tags}
                             fontSize: 16,
                           ),
                         ),
-                        child: Text("Register"),
+                        child: Text(
+                          languageService.t(
+                            'auth.register',
+                            fallback: "Register",
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -389,31 +446,31 @@ TAGS:${androidInfo.tags}
                             //login user
                             var app = new backendClient();
                             try {
+                              String nsn = phoneController.value.nsn;
+                              // Normalize: if user enters 10 digits (e.g., 078...) instead of 9, strip the leading 0
+                              if (nsn.startsWith('0') && nsn.length == 10) {
+                                nsn = nsn.substring(1);
+                              }
+
                               var result = await app.Login(
                                 context,
-                                "0${phoneController.value.nsn}",
+                                "0$nsn",
                                 "",
                               );
                               Loader.hide(); // Hide loader after response
                               if (result.statusCode == 200 &&
                                   result.data['status'] == "success") {
-                                await storePhonenumber(
-                                  phoneController.value.nsn,
-                                );
+                                await storePhonenumber(nsn);
 
-                                updateFcmTokenIfPhoneExists(
-                                  phoneController.value.nsn,
-                                ).then(
+                                updateFcmTokenIfPhoneExists(nsn).then(
                                   (msg) => {print("Fcm updated successfully")},
                                 );
 
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => pinScreen(
-                                      phonenumber:
-                                          "0${phoneController.value.nsn}",
-                                    ),
+                                    builder: (context) =>
+                                        pinScreen(phonenumber: "0$nsn"),
                                   ),
                                 );
                               } else {
@@ -428,8 +485,11 @@ TAGS:${androidInfo.tags}
                             }
                           },
                           label: Text(
-                            "Injira",
-                            style: TextStyle(color: myWhite),
+                            languageService.t('auth.login', fallback: "Injira"),
+                            style: const TextStyle(
+                              color: myWhite,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

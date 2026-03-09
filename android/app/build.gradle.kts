@@ -18,16 +18,45 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    aaptOptions {
+        noCompress("tflite", "lite")
+    }
+
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
         applicationId = "com.kaascan.application"
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion // Explicitly set to 21 to support Android 8.1 (API 27) for Wiseasy POS
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true  // Enable MultiDex for Android Go devices
+    }
+
+    // Split APKs by ABI to reduce app size for low-end devices
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
+    flavorDimensions += "services"
+
+    productFlavors {
+        create("gms") {
+            dimension = "services"
+            isDefault = true  // Set as default so flutter run works without --flavor flag
+        }
+        create("nogms") {
+            dimension = "services"
+            // Optional: Add a suffix to distinguish the installed app if needed
+            // applicationIdSuffix = ".nogms"
+        }
     }
 
     signingConfigs {
@@ -42,13 +71,16 @@ android {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+    }
+    dependencies {
+        implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
     }
 }
 

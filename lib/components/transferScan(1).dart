@@ -16,6 +16,16 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
+const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+const Color deepNavy = Color(0xFF1A1F36);
+const Color softGray = Color(0xFF9CA3AF);
+const Color cloudWhite = Color(0xFFFAFBFC);
+const Color lightBlue = Color(0xFFE6F0FF);
+const Color successGreen = Color(0xFF10B981);
+const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
+
 class scanTransfer extends StatefulWidget {
   const scanTransfer({super.key});
 
@@ -86,7 +96,9 @@ class _scanTransferState extends State<scanTransfer> {
             context: context,
             builder: (context) => AlertDialog(
               title: const Text('Location Services Disabled'),
-              content: const Text('Please enable location services to proceed with the transfer.'),
+              content: const Text(
+                'Please enable location services to proceed with the transfer.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -108,7 +120,9 @@ class _scanTransferState extends State<scanTransfer> {
               context: context,
               builder: (context) => AlertDialog(
                 title: const Text('Location Permission Denied'),
-                content: const Text('Please grant location permission to proceed with the transfer.'),
+                content: const Text(
+                  'Please grant location permission to proceed with the transfer.',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -128,7 +142,9 @@ class _scanTransferState extends State<scanTransfer> {
             context: context,
             builder: (context) => AlertDialog(
               title: const Text('Location Permission Permanently Denied'),
-              content: const Text('Please enable location permission in your device settings to proceed.'),
+              content: const Text(
+                'Please enable location permission in your device settings to proceed.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -144,10 +160,7 @@ class _scanTransferState extends State<scanTransfer> {
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      return {
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-      };
+      return {'latitude': position.latitude, 'longitude': position.longitude};
     } catch (e) {
       if (mounted) {
         showDialog(
@@ -174,243 +187,165 @@ class _scanTransferState extends State<scanTransfer> {
   }
 
   Future<void> _validateQRCode(String result) async {
-  setState(() {
-    isLoading = true;
-  });
+    setState(() {
+      isLoading = true;
+    });
 
-  try {
-    // Get location
-    final location = await _getLocation();
-    if (location == null) {
-      setState(() {
-        isLoading = false;
-        _QrcodeScanning = false;
-        hasScanned = false;
-        startedTransfer = false;
-      });
-      return;
-    }
-
-    var tempStorage = await SharedPreferences.getInstance();
-    var device_id = await tempStorage.getString('device_id');
-
-    // ✅ Safe JSON decode
-    dynamic data = _tryParseJson(result) ?? {'studentId': result};
-
-    // Post QR + location to endpoint
-    final response = await http.post(
-      Uri.parse('https://auto.kaascan.com/webhook/reedem'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'qrData': data,
-        'timestamp': DateTime.now().toIso8601String(),
-        'device_id': device_id,
-        'latitude': location['latitude'],
-        'longitude': location['longitude'],
-      }),
-    );
-
-    // Handle API response
-    if (response.statusCode == 200) {
-      final apiResponse = jsonDecode(response.body);
-      if (apiResponse['success'] == true) {
+    try {
+      // Get location
+      final location = await _getLocation();
+      if (location == null) {
         setState(() {
-          studentName = apiResponse['data']['student_name'] ?? 'Unknown';
-          studentProfileImage = apiResponse['data']['profile_photo'] ?? 'assets/default-profile.png';
-          scannedValue = result;
+          isLoading = false;
+          _QrcodeScanning = false;
+          hasScanned = false;
+          startedTransfer = false;
         });
-      } else {
-        // 🔴 Student not found case
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text(
-                'Student not found',
-                style: TextStyle(
-                  fontFamily: "gilroy",
-                  fontSize: 18,
-                  color: myColor,
-                ),
-              ),
-              content: Text(
-                apiResponse['message'] ?? 'The scanned QR code did not match any student.',
-                style: TextStyle(
-                  fontFamily: "gilroy",
-                  fontSize: 16,
-                  color: myColor,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      startedTransfer = false;
-                      _QrcodeScanning = false;
-                      hasScanned = false;
-                    });
-                  },
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      fontFamily: "gilroy",
-                      color: myColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
         return;
       }
-    } else {
-      throw Exception('Server error occurred. Please try again.');
-    }
-  } catch (e) {
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            'Validation Error',
-            style: TextStyle(
-              fontFamily: "gilroy",
-              color: myColor,
-            ),
-          ),
-          content: Text(
-            e.toString(),
-            style: TextStyle(
-              fontFamily: "gilroy",
-              fontSize: 16,
-              color: myColor,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  startedTransfer = false;
-                  _QrcodeScanning = false;
-                  hasScanned = false;
-                });
-              },
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  fontFamily: "gilroy",
-                  color: myColor,
+
+      var tempStorage = await SharedPreferences.getInstance();
+      var device_id = await tempStorage.getString('device_id');
+
+      // ✅ Safe JSON decode
+      dynamic data = _tryParseJson(result) ?? {'studentId': result};
+
+      // Post QR + location to endpoint
+      final response = await http.post(
+        Uri.parse('https://auto.kaascan.com/webhook/reedem'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'qrData': data,
+          'timestamp': DateTime.now().toIso8601String(),
+          'device_id': device_id,
+          'latitude': location['latitude'],
+          'longitude': location['longitude'],
+        }),
+      );
+
+      // Handle API response
+      if (response.statusCode == 200) {
+        final apiResponse = jsonDecode(response.body);
+        if (apiResponse['success'] == true) {
+          setState(() {
+            studentName = apiResponse['data']['student_name'] ?? 'Unknown';
+            studentProfileImage =
+                apiResponse['data']['profile_photo'] ??
+                'assets/default-profile.png';
+            scannedValue = result;
+          });
+        } else {
+          // 🔴 Student not found case
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text(
+                  'Student not found',
+                  style: TextStyle(
+                    fontFamily: "gilroy",
+                    fontSize: 18,
+                    color: myColor,
+                  ),
                 ),
+                content: Text(
+                  apiResponse['message'] ??
+                      'The scanned QR code did not match any student.',
+                  style: TextStyle(
+                    fontFamily: "gilroy",
+                    fontSize: 16,
+                    color: myColor,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        startedTransfer = false;
+                        _QrcodeScanning = false;
+                        hasScanned = false;
+                      });
+                    },
+                    child: Text(
+                      'OK',
+                      style: TextStyle(fontFamily: "gilroy", color: myColor),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+      } else {
+        throw Exception('Server error occurred. Please try again.');
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              'Validation Error',
+              style: TextStyle(fontFamily: "gilroy", color: myColor),
+            ),
+            content: Text(
+              e.toString(),
+              style: TextStyle(
+                fontFamily: "gilroy",
+                fontSize: 16,
+                color: myColor,
               ),
             ),
-          ],
-        ),
-      );
-    }
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
-  }
-}
-
-/// ✅ Safe JSON decode helper
-dynamic _tryParseJson(String source) {
-  try {
-    return jsonDecode(source);
-  } catch (_) {
-    return null;
-  }
-}
-
-Future<void> _processTransfer() async {
-  if (pinController.text.length != 4 ||
-      phoneNumber == null ||
-      phoneNumber!.length < 10 ||
-      amountController.text.isEmpty ||
-      double.tryParse(amountController.text) == null ||
-      double.parse(amountController.text) <= 0) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Invalid Input'),
-        content: const Text('Please provide a valid phone number, amount, and 4-digit PIN.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    startedTransfer = false;
+                    _QrcodeScanning = false;
+                    hasScanned = false;
+                  });
+                },
+                child: Text(
+                  'OK',
+                  style: TextStyle(fontFamily: "gilroy", color: myColor),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-    return;
-  }
-
-  setState(() {
-    isLoading = true;
-  });
-
-  final location = await _getLocation();
-  if (location == null) {
-    setState(() {
-      isLoading = false;
-    });
-    return;
-  }
-
-  try {
-    final response = await http.post(
-      Uri.parse('$base_Url/api/transfer'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'student_id': scannedValue,
-        'amount': double.parse(amountController.text),
-        'phone_number': phoneNumber,
-        'pin': pinController.text,
-        'timestamp': DateTime.now().toIso8601String(),
-        'latitude': location['latitude'],
-        'longitude': location['longitude'],
-      }),
-    );
-
-    final transferResponse = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && transferResponse['success'] == true) {
-      showAwesomeNotification(context, "Transfer", "Kwishyurwa Byagenze neza");
+        );
+      }
+    } finally {
       setState(() {
-        isSuccess = true;
+        isLoading = false;
       });
-    } else if (response.statusCode == 422) {
-      showAwesomeNotification(context, "Transfer", "Umubare w`ibanga siwo.");
-    } else if (response.statusCode == 400) {
-      showAwesomeNotification(context, "Transfer", "Umafaranga ari kwikarita ntahagije.");
-    } else {
-      // fallback for other errors
-      final message = transferResponse['message'] ?? 'Transaction failed. Please try again.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-            style: TextStyle(fontFamily: "gilroy"),
-          ),
-        ),
-      );
     }
-  } catch (e) {
-    if (mounted) {
+  }
+
+  /// ✅ Safe JSON decode helper
+  dynamic _tryParseJson(String source) {
+    try {
+      return jsonDecode(source);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _processTransfer() async {
+    if (pinController.text.length != 4 ||
+        phoneNumber == null ||
+        phoneNumber!.length < 10 ||
+        amountController.text.isEmpty ||
+        double.tryParse(amountController.text) == null ||
+        double.parse(amountController.text) <= 0) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(
-            'Transfer Error',
-            style: TextStyle(color: myColor, fontFamily: "gilroy"),
-          ),
-          content: Text(
-            "Kohereza ntibyagenze neza. Mugerageza mukanya.",
-            style: TextStyle(color: myOpblue, fontFamily: "gilroy"),
+          title: const Text('Invalid Input'),
+          content: const Text(
+            'Please provide a valid phone number, amount, and 4-digit PIN.',
           ),
           actions: [
             TextButton(
@@ -420,14 +355,94 @@ Future<void> _processTransfer() async {
           ],
         ),
       );
+      return;
     }
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
-  }
-}
 
+    setState(() {
+      isLoading = true;
+    });
+
+    final location = await _getLocation();
+    if (location == null) {
+      setState(() {
+        isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$base_Url/api/transfer'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'student_id': scannedValue,
+          'amount': double.parse(amountController.text),
+          'phone_number': phoneNumber,
+          'pin': pinController.text,
+          'timestamp': DateTime.now().toIso8601String(),
+          'latitude': location['latitude'],
+          'longitude': location['longitude'],
+        }),
+      );
+
+      final transferResponse = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && transferResponse['success'] == true) {
+        showAwesomeNotification(
+          context,
+          "Transfer",
+          "Kwishyurwa Byagenze neza",
+        );
+        setState(() {
+          isSuccess = true;
+        });
+      } else if (response.statusCode == 422) {
+        showAwesomeNotification(context, "Transfer", "Umubare w`ibanga siwo.");
+      } else if (response.statusCode == 400) {
+        showAwesomeNotification(
+          context,
+          "Transfer",
+          "Umafaranga ari kwikarita ntahagije.",
+        );
+      } else {
+        // fallback for other errors
+        final message =
+            transferResponse['message'] ??
+            'Transaction failed. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message, style: TextStyle(fontFamily: "gilroy")),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              'Transfer Error',
+              style: TextStyle(color: myColor, fontFamily: "gilroy"),
+            ),
+            content: Text(
+              "Kohereza ntibyagenze neza. Mugerageza mukanya.",
+              style: TextStyle(color: myOpblue, fontFamily: "gilroy"),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   void _reset() {
     setState(() {
@@ -481,7 +496,10 @@ Future<void> _processTransfer() async {
                 var vibrate = AllVibrate();
                 vibrate.simpleVibrate(period: 50, amplitude: 10);
                 if (pinController.text.isNotEmpty) {
-                  pinController.text = pinController.text.substring(0, pinController.text.length - 1);
+                  pinController.text = pinController.text.substring(
+                    0,
+                    pinController.text.length - 1,
+                  );
                 }
               });
             },
@@ -525,7 +543,10 @@ Future<void> _processTransfer() async {
                         children: [
                           Row(
                             children: [
-                              Image.asset("assets/images/business.png", scale: 7),
+                              Image.asset(
+                                "assets/images/business.png",
+                                scale: 7,
+                              ),
                             ],
                           ),
                         ],
@@ -548,7 +569,10 @@ Future<void> _processTransfer() async {
                             filled: true,
                             fillColor: myWhite,
                           ),
-                          style: TextStyle(color: myColor, fontFamily: "gilroy"),
+                          style: TextStyle(
+                            color: myColor,
+                            fontFamily: "gilroy",
+                          ),
                           onChanged: (value) {
                             phoneNumber = value;
                             _savePhoneNumber(value);
@@ -573,7 +597,10 @@ Future<void> _processTransfer() async {
                             filled: true,
                             fillColor: myWhite,
                           ),
-                          style: TextStyle(color: myColor, fontFamily: "gilroy"),
+                          style: TextStyle(
+                            color: myColor,
+                            fontFamily: "gilroy",
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -585,7 +612,10 @@ Future<void> _processTransfer() async {
                           Text(
                             "After entering the RWFs amount \n scan the student card",
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: myOpblue, fontFamily: "gilroy"),
+                            style: TextStyle(
+                              color: myOpblue,
+                              fontFamily: "gilroy",
+                            ),
                           ),
                         ],
                       ),
@@ -604,16 +634,23 @@ Future<void> _processTransfer() async {
                                     if (phoneNumber == null ||
                                         phoneNumber!.length < 10 ||
                                         amountController.text.isEmpty ||
-                                        double.tryParse(amountController.text) == null ||
-                                        double.parse(amountController.text) <= 0) {
+                                        double.tryParse(
+                                              amountController.text,
+                                            ) ==
+                                            null ||
+                                        double.parse(amountController.text) <=
+                                            0) {
                                       showDialog(
                                         context: context,
                                         builder: (context) => AlertDialog(
                                           title: const Text('Invalid Input'),
-                                          content: const Text('Please enter a valid phone number and amount.'),
+                                          content: const Text(
+                                            'Please enter a valid phone number and amount.',
+                                          ),
                                           actions: [
                                             TextButton(
-                                              onPressed: () => Navigator.pop(context),
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
                                               child: const Text('OK'),
                                             ),
                                           ],
@@ -631,14 +668,31 @@ Future<void> _processTransfer() async {
                                     showDialog(
                                       context: context,
                                       builder: (context) => AlertDialog(
-                                        title: Text('Confirm Details',style: TextStyle(color: myColor,fontFamily: "gilroy"),),
+                                        title: Text(
+                                          'Confirm Details',
+                                          style: TextStyle(
+                                            color: myColor,
+                                            fontFamily: "gilroy",
+                                          ),
+                                        ),
                                         content: Text(
-                                          'Phone: $phoneNumber\nAmount: ${amountController.text}\nProceed to scan?',style: TextStyle(color: myColor,fontFamily: "gilroy"),
+                                          'Phone: $phoneNumber\nAmount: ${amountController.text}\nProceed to scan?',
+                                          style: TextStyle(
+                                            color: myColor,
+                                            fontFamily: "gilroy",
+                                          ),
                                         ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: const Text('Cancel',style: TextStyle(color: Colors.red,fontFamily: "gilroy"),),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            child: const Text(
+                                              'Cancel',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                                fontFamily: "gilroy",
+                                              ),
+                                            ),
                                           ),
                                           TextButton(
                                             onPressed: () {
@@ -648,7 +702,13 @@ Future<void> _processTransfer() async {
                                                 _QrcodeScanning = true;
                                               });
                                             },
-                                            child: const Text('Yes',style: TextStyle(color: Colors.green,fontFamily: "gilroy"),),
+                                            child: const Text(
+                                              'Yes',
+                                              style: TextStyle(
+                                                color: Colors.green,
+                                                fontFamily: "gilroy",
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -668,291 +728,309 @@ Future<void> _processTransfer() async {
                   ),
                 )
               : _QrcodeScanning
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        AiBarcodeScanner(
-                          galleryButtonText: "Import Qrcode",
-                          fit: BoxFit.fitWidth,
-                          overlayConfig: ScannerOverlayConfig(
-                            backgroundBlurColor: myWhite,
-                            borderColor: myColor,
-                            animationColor: myWhite,
-                            lineThickness: 4,
-                            cornerLength: 100,
-                            scannerBorder: ScannerBorder.corner,
-                          ),
-                          extendBodyBehindAppBar: true,
-                          controller: controller,
-                          validator: (value) {
-                            if (!hasScanned) {
-                              var vibrate = AllVibrate();
-                              vibrate.simpleVibrate(period: 50, amplitude: 10);
-                            } else {
-                              print("isScanned [ok]");
-                            }
-                            return true;
-                          },
-                          onDetect: (BarcodeCapture capture) {
-                            final result = capture.barcodes.first.rawValue;
-                            print('Valid barcode detected: $result');
-                            if (!hasScanned) {
-                              setState(() {
-                                hasScanned = true;
-                                _QrcodeScanning = false;
-                              });
-                              _validateQRCode(result!);
-                            } else {
-                              print("isScanned [ok]");
-                            }
-                          },
-                        ),
-                        SafeArea(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Center(
-                                  child: Text(
-                                    "Scan Student QR Code",
-                                    style: TextStyle(
-                                      fontFamily: "gilroy",
-                                      color: myColor,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    AiBarcodeScanner(
+                      galleryButtonText: "Import Qrcode",
+                      fit: BoxFit.fitWidth,
+                      overlayConfig: ScannerOverlayConfig(
+                        backgroundBlurColor: myWhite,
+                        borderColor: myColor,
+                        animationColor: myWhite,
+                        lineThickness: 4,
+                        cornerLength: 100,
+                        scannerBorder: ScannerBorder.corner,
+                      ),
+                      extendBodyBehindAppBar: true,
+                      controller: controller,
+                      validator: (value) {
+                        if (!hasScanned) {
+                          var vibrate = AllVibrate();
+                          vibrate.simpleVibrate(period: 50, amplitude: 10);
+                        } else {
+                          print("isScanned [ok]");
+                        }
+                        return true;
+                      },
+                      onDetect: (BarcodeCapture capture) {
+                        final result = capture.barcodes.first.rawValue;
+                        print('Valid barcode detected: $result');
+                        if (!hasScanned) {
+                          setState(() {
+                            hasScanned = true;
+                            _QrcodeScanning = false;
+                          });
+                          _validateQRCode(result!);
+                        } else {
+                          print("isScanned [ok]");
+                        }
+                      },
+                    ),
+                    SafeArea(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Text(
+                                "Scan Student QR Code",
+                                style: TextStyle(
+                                  fontFamily: "gilroy",
+                                  color: myColor,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Center(
-                                  child: Text(
-                                    "Align the QR code within the frame to scan",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: "gilroy",
-                                      color: myOpblue,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    )
-                  : isLoading
-                      ? Center(
-                          child: LoadingAnimationWidget.discreteCircle(
-                            secondRingColor: myOpblue,
-                            thirdRingColor: myColor,
-                            color: Colors.white,
-                            size: 60,
-                          ),
-                        )
-                      : isSuccess
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    "Transfer Successful!",
-                                    style: TextStyle(
-                                      fontFamily: "gilroy",
-                                      color: myColor,
-                                      fontSize: 24,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: myColor),
-                                    onPressed: _reset,
-                                    child: Text(
-                                      "Start New",
-                                      style: TextStyle(fontFamily: "gilroy", color: myWhite),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : SingleChildScrollView(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  if (errorMessage != null)
-                                    Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Text(
-                                        errorMessage!,
-                                        style: const TextStyle(color: Colors.red, fontSize: 16),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 40),
-                                  AdvancedAvatar(
-                                    image: (studentProfileImage?.startsWith('http') ?? false)
-                                        ? NetworkImage(studentProfileImage!)
-                                        : (studentProfileImage != null
-                                            ? AssetImage(studentProfileImage!)
-                                            : null),
-                                    child: (studentProfileImage?.startsWith('http') ?? false) || studentProfileImage != null
-                                        ? null
-                                        : Icon(Icons.person, color: myWhite, size: 60),
-                                    size: 100,
-                                    name: studentName ?? "Unknown",
-                                    style: TextStyle(
-                                      color: myWhite,
-                                      fontFamily: "gilroy",
-                                      fontSize: 40,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: myColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: isWideScreen ? 400 : 200,
-                                        child: Text(
-                                          "Student: ${studentName ?? 'Unknown'}",
-                                          overflow: TextOverflow.clip,
-                                          maxLines: 1,
-                                          style: TextStyle(
-                                            fontFamily: "gilroy",
-                                            color: myColor,
-                                            fontSize: 20,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Text(
-                                    "Amount to Transfer: ${amountController.text}",
-                                    style: TextStyle(
-                                      fontFamily: "gilroy",
-                                      color: myOpblue,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 40),
-                                  Text(
-                                    "Enter PIN",
-                                    style: TextStyle(
-                                      fontFamily: "gilroy",
-                                      color: myColor,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: isWideScreen ? 400 : 200,
-                                    child: TextField(
-                                      controller: pinController,
-                                      obscureText: true,
-                                      readOnly: true,
-                                      showCursor: false,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontFamily: "gilroy",
-                                        color: myColor,
-                                        fontSize: 24,
-                                        letterSpacing: 8,
-                                      ),
-                                      decoration: const InputDecoration(
-                                        border: UnderlineInputBorder(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isWideScreen ? 100 : 40,
-                                    ),
-                                    child: GridView.count(
-                                      crossAxisCount: isWideScreen ? 5 : 5,
-                                      shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      mainAxisSpacing: 10,
-                                      crossAxisSpacing: 10,
-                                      children: [
-                                        _buildNumberButton('1'),
-                                        _buildNumberButton('2'),
-                                        _buildNumberButton('3'),
-                                        _buildNumberButton('4'),
-                                        _buildNumberButton('5'),
-                                        _buildNumberButton('6'),
-                                        _buildNumberButton('7'),
-                                        _buildNumberButton('8'),
-                                        _buildNumberButton('9'),
-                                        _buildDeleteButton(),
-                                        _buildNumberButton('0'),
-                                        _buildEmptyButton(),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 40),
-                                  Padding(
-                                    padding: const EdgeInsets.all(20.0),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: myOpblue,
-                                          ),
-                                          onPressed: (isLoading || isGettingLocation)
-                                              ? null
-                                              : () {
-                                                  var vibrate = AllVibrate();
-                                                  vibrate.simpleVibrate(period: 50, amplitude: 10);
-                                                  Navigator.pushReplacement(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => Transfer(),
-                                                    ),
-                                                  );
-                                                },
-                                          child: Text(
-                                            "New Transaction",
-                                            style: TextStyle(
-                                              fontFamily: "gilroy",
-                                              color: myWhite,
-                                            ),
-                                          ),
-                                        ),
-                                        ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: myColor,
-                                          ),
-                                          onPressed: (isLoading || isGettingLocation)
-                                              ? null
-                                              : () {
-                                                  var vibrate = AllVibrate();
-                                                  vibrate.simpleVibrate(period: 50, amplitude: 10);
-                                                  _processTransfer();
-                                                },
-                                          child: Text(
-                                            "Confirm",
-                                            style: TextStyle(
-                                              fontFamily: "gilroy",
-                                              color: myWhite,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 40),
-                                ],
                               ),
                             ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: Text(
+                                "Align the QR code within the frame to scan",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: "gilroy",
+                                  color: myOpblue,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : isLoading
+              ? Center(
+                  child: LoadingAnimationWidget.discreteCircle(
+                    secondRingColor: myOpblue,
+                    thirdRingColor: myColor,
+                    color: Colors.white,
+                    size: 60,
+                  ),
+                )
+              : isSuccess
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Transfer Successful!",
+                        style: TextStyle(
+                          fontFamily: "gilroy",
+                          color: myColor,
+                          fontSize: 24,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: myColor,
+                        ),
+                        onPressed: _reset,
+                        child: Text(
+                          "Start New",
+                          style: TextStyle(
+                            fontFamily: "gilroy",
+                            color: myWhite,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 40),
+                      AdvancedAvatar(
+                        image:
+                            (studentProfileImage?.startsWith('http') ?? false)
+                            ? NetworkImage(studentProfileImage!)
+                            : (studentProfileImage != null
+                                  ? AssetImage(studentProfileImage!)
+                                  : null),
+                        child:
+                            (studentProfileImage?.startsWith('http') ??
+                                    false) ||
+                                studentProfileImage != null
+                            ? null
+                            : Icon(Icons.person, color: myWhite, size: 60),
+                        size: 100,
+                        name: studentName ?? "Unknown",
+                        style: TextStyle(
+                          color: myWhite,
+                          fontFamily: "gilroy",
+                          fontSize: 40,
+                        ),
+                        decoration: BoxDecoration(
+                          color: myColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: isWideScreen ? 400 : 200,
+                            child: Text(
+                              "Student: ${studentName ?? 'Unknown'}",
+                              overflow: TextOverflow.clip,
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontFamily: "gilroy",
+                                color: myColor,
+                                fontSize: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        "Amount to Transfer: ${amountController.text}",
+                        style: TextStyle(
+                          fontFamily: "gilroy",
+                          color: myOpblue,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      Text(
+                        "Enter PIN",
+                        style: TextStyle(
+                          fontFamily: "gilroy",
+                          color: myColor,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: isWideScreen ? 400 : 200,
+                        child: TextField(
+                          controller: pinController,
+                          obscureText: true,
+                          readOnly: true,
+                          showCursor: false,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: "gilroy",
+                            color: myColor,
+                            fontSize: 24,
+                            letterSpacing: 8,
+                          ),
+                          decoration: const InputDecoration(
+                            border: UnderlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isWideScreen ? 100 : 40,
+                        ),
+                        child: GridView.count(
+                          crossAxisCount: isWideScreen ? 5 : 5,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          children: [
+                            _buildNumberButton('1'),
+                            _buildNumberButton('2'),
+                            _buildNumberButton('3'),
+                            _buildNumberButton('4'),
+                            _buildNumberButton('5'),
+                            _buildNumberButton('6'),
+                            _buildNumberButton('7'),
+                            _buildNumberButton('8'),
+                            _buildNumberButton('9'),
+                            _buildDeleteButton(),
+                            _buildNumberButton('0'),
+                            _buildEmptyButton(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: myOpblue,
+                              ),
+                              onPressed: (isLoading || isGettingLocation)
+                                  ? null
+                                  : () {
+                                      var vibrate = AllVibrate();
+                                      vibrate.simpleVibrate(
+                                        period: 50,
+                                        amplitude: 10,
+                                      );
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => Transfer(),
+                                        ),
+                                      );
+                                    },
+                              child: Text(
+                                "New Transaction",
+                                style: TextStyle(
+                                  fontFamily: "gilroy",
+                                  color: myWhite,
+                                ),
+                              ),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: myColor,
+                              ),
+                              onPressed: (isLoading || isGettingLocation)
+                                  ? null
+                                  : () {
+                                      var vibrate = AllVibrate();
+                                      vibrate.simpleVibrate(
+                                        period: 50,
+                                        amplitude: 10,
+                                      );
+                                      _processTransfer();
+                                    },
+                              child: Text(
+                                "Confirm",
+                                style: TextStyle(
+                                  fontFamily: "gilroy",
+                                  color: myWhite,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
           if (isGettingLocation)
             Container(
               color: Colors.black54,

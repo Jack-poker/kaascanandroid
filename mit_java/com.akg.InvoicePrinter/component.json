@@ -1,0 +1,76 @@
+{
+ "categoryString": "EXTENSION",
+ "dateBuilt": "2025-05-20T04:17:30+0000",
+ "nonVisible": "true",
+ "iconName": "",
+ "methods": [{
+  "deprecated": "false",
+  "name": "PrintInvoice",
+  "description": "Print invoice with customizable header and footer.",
+  "params": [
+   {
+    "name": "bluetoothClient",
+    "type": "component"
+   },
+   {
+    "name": "headerText",
+    "type": "text"
+   },
+   {
+    "name": "invoiceID",
+    "type": "text"
+   },
+   {
+    "name": "date",
+    "type": "text"
+   },
+   {
+    "name": "employeeName",
+    "type": "text"
+   },
+   {
+    "name": "customerName",
+    "type": "text"
+   },
+   {
+    "name": "productListText",
+    "type": "list"
+   },
+   {
+    "name": "discount",
+    "type": "text"
+   },
+   {
+    "name": "totalValue",
+    "type": "text"
+   },
+   {
+    "name": "remark",
+    "type": "text"
+   },
+   {
+    "name": "footerText",
+    "type": "text"
+   }
+  ]
+ }],
+ "blockProperties": [],
+ "helpUrl": "",
+ "type": "com.akg.InvoicePrinter.InvoicePrinter",
+ "androidMinSdk": 7,
+ "version": "1",
+ "external": "true",
+ "showOnPalette": "true",
+ "name": "InvoicePrinter",
+ "helpString": "Thermal Bluetooth Invoice Printer Extension",
+ "properties": [],
+ "events": [{
+  "deprecated": "false",
+  "name": "PrintError",
+  "description": "Print error.",
+  "params": [{
+   "name": "message",
+   "type": "text"
+  }]
+ }]
+}

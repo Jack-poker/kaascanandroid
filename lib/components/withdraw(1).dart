@@ -9,6 +9,16 @@ import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:wheel_slider/wheel_slider.dart';
 import 'package:kaascan/Api/client.dart';
 
+const Color myColor = Color.fromARGB(255, 0, 34, 255);
+const Color myWhite = Colors.white;
+const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+const Color deepNavy = Color(0xFF1A1F36);
+const Color softGray = Color(0xFF9CA3AF);
+const Color cloudWhite = Color(0xFFFAFBFC);
+const Color lightBlue = Color(0xFFE6F0FF);
+const Color successGreen = Color(0xFF10B981);
+const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
+
 class WithdrawPage extends StatefulWidget {
   const WithdrawPage({super.key});
 
@@ -16,7 +26,8 @@ class WithdrawPage extends StatefulWidget {
   State<WithdrawPage> createState() => _WithdrawPageState();
 }
 
-class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMixin {
+class _WithdrawPageState extends State<WithdrawPage>
+    with TickerProviderStateMixin {
   final int _totalCount = 500;
   final int _initValue = 500;
   int _currentValue = 0;
@@ -27,7 +38,7 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
   late Animation<double> _pulseAnimation;
 
   // Assume these are defined elsewhere in the project
- 
+
   @override
   void initState() {
     super.initState();
@@ -89,9 +100,11 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
         await _showOtpDialog(token);
       } else {
         if (mounted) {
-          String message = otpRes.data['message'] ?? "Failed to send OTP. Please try again.";
+          String message =
+              otpRes.data['message'] ?? "Failed to send OTP. Please try again.";
           if (otpRes.statusCode == 400) {
-            message = "Invalid request. Please check your details and try again.";
+            message =
+                "Invalid request. Please check your details and try again.";
           } else if (otpRes.statusCode == 401) {
             message = "Session expired. Please log in again.";
           } else if (otpRes.statusCode == 404) {
@@ -106,7 +119,9 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
               backgroundColor: Colors.red,
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           );
         }
@@ -122,7 +137,9 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -147,9 +164,7 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
             return SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: IntrinsicHeight(
                   child: Padding(
                     padding: EdgeInsets.symmetric(
@@ -162,7 +177,10 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                         // Header
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 20,
+                            horizontal: 24,
+                          ),
                           decoration: BoxDecoration(
                             color: myWhite,
                             borderRadius: BorderRadius.circular(20),
@@ -283,7 +301,10 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                                 onValueChanged: (val) {
                                   setState(() {
                                     _currentValue = val;
-                                    vibrate.simpleVibrate(period: 30, amplitude: 50);
+                                    vibrate.simpleVibrate(
+                                      period: 30,
+                                      amplitude: 50,
+                                    );
                                   });
                                 },
                               ),
@@ -297,7 +318,10 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                                       setState(() {
                                         _currentValue = amount;
                                       });
-                                      vibrate.simpleVibrate(period: 20, amplitude: 30);
+                                      vibrate.simpleVibrate(
+                                        period: 20,
+                                        amplitude: 30,
+                                      );
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
@@ -318,7 +342,9 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                                         "$amount",
                                         style: TextStyle(
                                           fontFamily: "gilroy",
-                                          color: _currentValue == amount ? myWhite : myColor,
+                                          color: _currentValue == amount
+                                              ? myWhite
+                                              : myColor,
                                           fontSize: isSmallScreen ? 12 : 14,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -339,7 +365,9 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                               scale: isLoading ? _pulseAnimation.value : 1.0,
                               child: Container(
                                 width: double.infinity,
-                                constraints: BoxConstraints(maxWidth: size.width * 0.9),
+                                constraints: BoxConstraints(
+                                  maxWidth: size.width * 0.9,
+                                ),
                                 child: isLoading
                                     ? LoadingAnimationWidget.staggeredDotsWave(
                                         color: myColor,
@@ -354,7 +382,9 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                                             vertical: 14,
                                           ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                           elevation: 4,
                                           shadowColor: myColor.withOpacity(0.3),
@@ -373,7 +403,9 @@ class _WithdrawPageState extends State<WithdrawPage> with TickerProviderStateMix
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        onPressed: _currentValue > 0 ? _requestOtpAndShowDialog : null,
+                                        onPressed: _currentValue > 0
+                                            ? _requestOtpAndShowDialog
+                                            : null,
                                       ),
                               ),
                             );
@@ -448,98 +480,101 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
   }
 
   Future<void> confirmWithdraw() async {
-  setState(() {
-    isProcessing = true;
-    statusMessage = null;
-  });
+    setState(() {
+      isProcessing = true;
+      statusMessage = null;
+    });
 
-  try {
-    final xtoken = await widget.app.csrfToken();
-    final otpCode = otpDigits.join("");
-    final tempStorage = await SharedPreferences.getInstance();
-    final phone = tempStorage.getString("phonenumber");
+    try {
+      final xtoken = await widget.app.csrfToken();
+      final otpCode = otpDigits.join("");
+      final tempStorage = await SharedPreferences.getInstance();
+      final phone = tempStorage.getString("phonenumber");
 
-    final res = await app.walletWithdraw(
-      xtoken.data['csrf_token'],
-      widget.token,
-      widget.amount,
-      otpCode,
-      phone!,
-    );
+      final res = await app.walletWithdraw(
+        xtoken.data['csrf_token'],
+        widget.token,
+        widget.amount,
+        otpCode,
+        phone!,
+      );
 
-    print("➡️ Withdraw Response: $res");
+      print("➡️ Withdraw Response: $res");
 
-    final int statusCode = res['statusCode'] ?? 500;
-    final data = res['data'] ?? {};
-    final String status = data['status'] ?? 'failed';
-    String message = data['detail'] ?? "Kubikuza byanze. Ongera ugerageze.";
+      final int statusCode = res['statusCode'] ?? 500;
+      final data = res['data'] ?? {};
+      final String status = data['status'] ?? 'failed';
+      String message = data['detail'] ?? "Kubikuza byanze. Ongera ugerageze.";
 
-    // ✅ If success (assuming your success response structure is still the same)
-    if (statusCode == 200 && status == "success") {
-      setState(() {
-        statusMessage = "✅ Kubikuza byagenze neza!";
-      });
+      // ✅ If success (assuming your success response structure is still the same)
+      if (statusCode == 200 && status == "success") {
+        setState(() {
+          statusMessage = "✅ Kubikuza byagenze neza!";
+        });
 
-      await Future.delayed(const Duration(seconds: 2));
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-      return;
-    }
-
-    // 🔁 Interpret detail message and statusCode
-    switch (statusCode) {
-      case 400:
-      if(message.toLowerCase().contains("Kubikuza byanze")){
-          message = "💰 Kubikuza byanze. Mwongera mugerageze.";
-      }else if (message.toLowerCase().contains("insufficient balance")) {
-          message = "💰 Amafaranga ari kuri konti ntahagije. Ongera wongereho amafaranga mbere yo kugerageza.";
-        } else if (message.toLowerCase().contains("invalid withdrawal amount")) {
-          message = "⚠️ Umubare w’amafaranga uvuze siwo ukwiye. Hitamo umubare ukwiye.";
-        } else if (message.toLowerCase().contains("invalid otp")) {
-          message = "🔐 Kode ya OTP siyo. Reba neza wongere ugerageze.";
-        } else {
-          message = "💰 Kubikuza byanze. Mwongera mugerageze.";
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          Navigator.pop(context, true);
         }
-        break;
+        return;
+      }
 
-      case 401:
-        message = "⏳ Igihe cya session kirarangiye. Injira bundi bushya.";
-        break;
+      // 🔁 Interpret detail message and statusCode
+      switch (statusCode) {
+        case 400:
+          if (message.toLowerCase().contains("Kubikuza byanze")) {
+            message = "💰 Kubikuza byanze. Mwongera mugerageze.";
+          } else if (message.toLowerCase().contains("insufficient balance")) {
+            message =
+                "💰 Amafaranga ari kuri konti ntahagije. Ongera wongereho amafaranga mbere yo kugerageza.";
+          } else if (message.toLowerCase().contains(
+            "invalid withdrawal amount",
+          )) {
+            message =
+                "⚠️ Umubare w’amafaranga uvuze siwo ukwiye. Hitamo umubare ukwiye.";
+          } else if (message.toLowerCase().contains("invalid otp")) {
+            message = "🔐 Kode ya OTP siyo. Reba neza wongere ugerageze.";
+          } else {
+            message = "💰 Kubikuza byanze. Mwongera mugerageze.";
+          }
+          break;
 
-      case 404:
-        message = "📵 Konti ntabwo yabonetse. Hamagara abatanga serivisi.";
-        break;
+        case 401:
+          message = "⏳ Igihe cya session kirarangiye. Injira bundi bushya.";
+          break;
 
-      case 409:
-        message = "♻️ Iyi transakiziyo yamaze gukorwa mbere. Ongera ugerageze.";
-        break;
+        case 404:
+          message = "📵 Konti ntabwo yabonetse. Hamagara abatanga serivisi.";
+          break;
 
-      case 500:
-        message = "🛠️ Ikibazo cya server cyabaye. Ongera ugerageze nyuma.";
-        break;
+        case 409:
+          message =
+              "♻️ Iyi transakiziyo yamaze gukorwa mbere. Ongera ugerageze.";
+          break;
 
-      default:
-        // fallback to whatever 'detail' was returned
-        break;
+        case 500:
+          message = "🛠️ Ikibazo cya server cyabaye. Ongera ugerageze nyuma.";
+          break;
+
+        default:
+          // fallback to whatever 'detail' was returned
+          break;
+      }
+
+      setState(() {
+        statusMessage = message;
+      });
+    } catch (e) {
+      print("❌ Exception: $e");
+      setState(() {
+        statusMessage = "🚫 Habaye ikosa ritunguranye. Ongera ugerageze nyuma.";
+      });
+    } finally {
+      setState(() {
+        isProcessing = false;
+      });
     }
-
-    setState(() {
-      statusMessage = message;
-    });
-  } catch (e) {
-    print("❌ Exception: $e");
-    setState(() {
-      statusMessage = "🚫 Habaye ikosa ritunguranye. Ongera ugerageze nyuma.";
-    });
-  } finally {
-    setState(() {
-      isProcessing = false;
-    });
   }
-}
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -608,11 +643,15 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                       otpDigits[index] = val;
                       if (val.isNotEmpty && index < 3) {
                         if (mounted) {
-                          FocusScope.of(context).requestFocus(focusNodes[index + 1]);
+                          FocusScope.of(
+                            context,
+                          ).requestFocus(focusNodes[index + 1]);
                         }
                       } else if (val.isEmpty && index > 0) {
                         if (mounted) {
-                          FocusScope.of(context).requestFocus(focusNodes[index - 1]);
+                          FocusScope.of(
+                            context,
+                          ).requestFocus(focusNodes[index - 1]);
                         }
                       }
                       setState(() {}); // Update button state
@@ -639,10 +678,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: myColor,
-                          width: 2,
-                        ),
+                        borderSide: BorderSide(color: myColor, width: 2),
                       ),
                     ),
                   ),
@@ -659,7 +695,9 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: "gilroy",
-                    color: statusMessage!.startsWith("✅") ? Colors.green : Colors.red,
+                    color: statusMessage!.startsWith("✅")
+                        ? Colors.green
+                        : Colors.red,
                     fontWeight: FontWeight.bold,
                     fontSize: isSmallScreen ? 12 : 14,
                   ),
@@ -684,7 +722,9 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                         elevation: 4,
                         shadowColor: myColor.withOpacity(0.3),
                       ),
-                      onPressed: otpDigits.join("").length == 4 ? confirmWithdraw : null,
+                      onPressed: otpDigits.join("").length == 4
+                          ? confirmWithdraw
+                          : null,
                       child: Text(
                         "Confirm Withdrawal",
                         style: TextStyle(
