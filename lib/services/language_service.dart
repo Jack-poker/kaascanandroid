@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../models/language_config.dart';
@@ -24,7 +25,11 @@ class LanguageService {
 
   LanguageConfig? _currentLanguage;
   AvailableLanguages? _availableLanguages;
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    sendTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 8),
+  ));
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   /// Play localized sound by key
@@ -37,7 +42,7 @@ class LanguageService {
         await _audioPlayer.play(AssetSource(cleanPath));
       }
     } catch (e) {
-      print("⚠️ Error playing localized sound: $e");
+      print("[x]Error playing localized sound: $e");
     }
   }
 
@@ -61,22 +66,22 @@ class LanguageService {
 
   /// Initialize language service - Call this at app startup
   Future<void> initialize() async {
-    print("🌍 Initializing Language Service...");
-    
+    print("[*] Initializing Language Service...");
+
     try {
       // Load cached language first for immediate UI rendering
       await _loadCachedLanguage();
-      
+
       // Fetch updated languages from server in background
       await fetchAvailableLanguages();
-      
+
       // Update current language if needed
       final langCode = await _getSavedLanguageCode();
       await loadLanguage(langCode);
-      
-      print("✅ Language Service initialized successfully");
+
+      print("[*] Language Service initialized successfully");
     } catch (e) {
-      print("⚠️ Language Service initialization error: $e");
+      print("[x]Language Service initialization error: $e");
       // Fallback to embedded default if everything fails
       await _loadFallbackLanguage();
     }
@@ -86,35 +91,52 @@ class LanguageService {
   Future<void> fetchAvailableLanguages() async {
     try {
       final response = await _dio.get("$n8nBaseUrl$languagesListEndpoint");
-      
+
       if (response.statusCode == 200) {
-        // Handle response - it should be a Map with defaultLanguage and languages array
-        final Map<String, dynamic> data;
-        
-        if (response.data is Map<String, dynamic>) {
-          data = response.data as Map<String, dynamic>;
-        } else {
-          // If response is not what we expect, use fallback
-          print("⚠️ Unexpected response format from languages list endpoint");
-          await _loadCachedAvailableLanguages();
-          if (_availableLanguages == null) {
-            _availableLanguages = _getFallbackAvailableLanguages();
+        final dynamic payload = response.data;
+        Map<String, dynamic> data;
+
+        if (payload is Map) {
+          final payloadMap = Map<String, dynamic>.from(payload);
+          final languagesValue = payloadMap['languages'];
+
+          if (languagesValue is List) {
+            data = {
+              'defaultLanguage': payloadMap['defaultLanguage'] ?? 'en',
+              'languages': languagesValue,
+            };
+          } else if (languagesValue is Map) {
+            data = Map<String, dynamic>.from(languagesValue);
+            if (!data.containsKey('defaultLanguage') &&
+                payloadMap['defaultLanguage'] != null) {
+              data['defaultLanguage'] = payloadMap['defaultLanguage'];
+            }
+          } else if (payloadMap.containsKey('defaultLanguage') ||
+              payloadMap.containsKey('languages')) {
+            data = payloadMap;
+          } else {
+            throw FormatException('Unsupported languages payload');
           }
-          return;
+        } else if (payload is List) {
+          data = {'defaultLanguage': 'en', 'languages': payload};
+        } else {
+          throw FormatException('Unsupported languages payload');
         }
-        
+
         _availableLanguages = AvailableLanguages.fromJson(data);
         await _cacheAvailableLanguages(_availableLanguages!);
-        print("✅ Fetched ${_availableLanguages!.languages.length} available languages");
+        print(
+          "[*] Fetched ${_availableLanguages!.languages.length} available languages",
+        );
       }
     } catch (e) {
-      print("⚠️ Failed to fetch available languages: $e");
+      print("[x]Failed to fetch available languages: $e");
       // Load from cache
       await _loadCachedAvailableLanguages();
       // If no cache, use fallback
       if (_availableLanguages == null) {
         _availableLanguages = _getFallbackAvailableLanguages();
-        print("✅ Using fallback available languages");
+        print("[*] Using fallback available languages");
       }
     }
   }
@@ -126,7 +148,7 @@ class LanguageService {
       final cached = await _loadCachedLanguageData(languageCode);
       if (cached != null) {
         _currentLanguage = cached;
-        print("✅ Loaded language '$languageCode' from cache");
+        print("[*] Loaded language '$languageCode' from cache");
       }
 
       // Fetch from server
@@ -137,12 +159,13 @@ class LanguageService {
 
       if (response.statusCode == 200) {
         final data = Map<String, dynamic>.from(response.data);
-        
+
         // If flagEmoji is missing from server response, try to find it from available languages
         if (data['flagEmoji'] == null && _availableLanguages != null) {
           final langInfo = _availableLanguages!.languages.firstWhere(
             (l) => l.code == languageCode,
-            orElse: () => LanguageInfo(code: languageCode, name: '', nativeName: ''),
+            orElse: () =>
+                LanguageInfo(code: languageCode, name: '', nativeName: ''),
           );
           data['flagEmoji'] = langInfo.flagEmoji;
         }
@@ -150,11 +173,11 @@ class LanguageService {
         _currentLanguage = LanguageConfig.fromJson(data);
         await _cacheLanguageData(languageCode, _currentLanguage!);
         await _saveCurrentLanguageCode(languageCode);
-        print("✅ Loaded language '$languageCode' from server");
+        print("[*] Loaded language '$languageCode' from server");
         return true;
       }
     } catch (e) {
-      print("⚠️ Failed to load language '$languageCode': $e");
+      print("[x]Failed to load language '$languageCode': $e");
       if (_currentLanguage != null) {
         return true; // Using cached version
       }
@@ -168,19 +191,27 @@ class LanguageService {
     final success = await loadLanguage(languageCode);
     if (success) {
       await _saveCurrentLanguageCode(languageCode);
-      print("✅ Language changed to: $languageCode");
+      print("[*] Language changed to: $languageCode");
     }
     return success;
   }
 
   /// Get translation by key
-  String translate(String key, {String? fallback, Map<String, String>? params}) {
+  String translate(
+    String key, {
+    String? fallback,
+    Map<String, String>? params,
+  }) {
     if (_currentLanguage == null) {
       return fallback ?? key;
     }
 
     if (params != null && params.isNotEmpty) {
-      return _currentLanguage!.translateWithParams(key, params, fallback: fallback);
+      return _currentLanguage!.translateWithParams(
+        key,
+        params,
+        fallback: fallback,
+      );
     }
 
     return _currentLanguage!.translate(key, fallback: fallback);
@@ -242,25 +273,31 @@ class LanguageService {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = "$_cacheKeyPrefix$languageCode";
       final jsonString = prefs.getString(cacheKey);
-      
+
       if (jsonString != null) {
         final json = jsonDecode(jsonString);
         return LanguageConfig.fromJson(json);
       }
     } catch (e) {
-      print("⚠️ Failed to load cached language data: $e");
+      print("[x]Failed to load cached language data: $e");
     }
     return null;
   }
 
-  Future<void> _cacheLanguageData(String languageCode, LanguageConfig config) async {
+  Future<void> _cacheLanguageData(
+    String languageCode,
+    LanguageConfig config,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = "$_cacheKeyPrefix$languageCode";
       await prefs.setString(cacheKey, jsonEncode(config.toJson()));
-      await prefs.setString(_cacheKeyLastUpdate + languageCode, DateTime.now().toIso8601String());
+      await prefs.setString(
+        _cacheKeyLastUpdate + languageCode,
+        DateTime.now().toIso8601String(),
+      );
     } catch (e) {
-      print("⚠️ Failed to cache language data: $e");
+      print("[x]Failed to cache language data: $e");
     }
   }
 
@@ -268,22 +305,25 @@ class LanguageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString(_cacheKeyAvailableLangs);
-      
+
       if (jsonString != null) {
         final json = jsonDecode(jsonString);
         _availableLanguages = AvailableLanguages.fromJson(json);
       }
     } catch (e) {
-      print("⚠️ Failed to load cached available languages: $e");
+      print("[x]Failed to load cached available languages: $e");
     }
   }
 
   Future<void> _cacheAvailableLanguages(AvailableLanguages languages) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKeyAvailableLangs, jsonEncode(languages.toJson()));
+      await prefs.setString(
+        _cacheKeyAvailableLangs,
+        jsonEncode(languages.toJson()),
+      );
     } catch (e) {
-      print("⚠️ Failed to cache available languages: $e");
+      print("[x]Failed to cache available languages: $e");
     }
   }
 
@@ -296,7 +336,7 @@ class LanguageService {
       flagEmoji: '🇬🇧',
       translations: _getFallbackTranslations(),
     );
-    print("✅ Loaded fallback language");
+    print("[*] Loaded fallback language");
   }
 
   AvailableLanguages _getFallbackAvailableLanguages() {
@@ -351,7 +391,8 @@ class LanguageService {
       },
       "deposit": {
         "title": "Deposit using Mobile Money",
-        "description": "Easily deposit money on {studentName}'s account using Mobile Money. Simply enter the amount to deposit below.",
+        "description":
+            "Easily deposit money on {studentName}'s account using Mobile Money. Simply enter the amount to deposit below.",
         "ps_message": "PS! Make sure you have sufficient funds to deposit.",
         "amount": "Amount",
         "telco_fees_apply": "Telco fees apply",
@@ -382,14 +423,15 @@ class LanguageService {
           "latest_activity": "Latest Activity",
           "see_all": "See All >",
           "no_transactions": "No transactions yet.",
-          "transaction_history": "Transaction History"
+          "transaction_history": "Transaction History",
         },
         "payout": {
           "title": "Merchant Payouts",
           "request_tab": "Request Payout",
           "history_tab": "History",
           "auto_payouts_card": "Auto Payouts",
-          "auto_payouts_desc": "Payouts are automatically processed to your registered mobile money account.",
+          "auto_payouts_desc":
+              "Payouts are automatically processed to your registered mobile money account.",
           "schedule_label": "Schedule",
           "schedule_val": "Mon, Wed, Fri",
           "time_label": "Time",
@@ -404,11 +446,12 @@ class LanguageService {
           "fee": "Fee (5%)",
           "phone": "Phone",
           "date": "Date",
-          "reference": "Reference"
+          "reference": "Reference",
         },
         "receive": {
           "waiting": "Waiting for Payment...",
-          "instruction": "Please ask the student to tap their card\nor scan their QR code to pay."
+          "instruction":
+              "Please ask the student to tap their card\nor scan their QR code to pay.",
         },
         "profile": {
           "transacts": "Transacts",
@@ -421,8 +464,8 @@ class LanguageService {
           "notifications": "Notifications",
           "alert_prefs": "Alert preferences",
           "help_center": "Help Center",
-          "faq_support": "FAQ & Support"
-        }
+          "faq_support": "FAQ & Support",
+        },
       },
     };
   }

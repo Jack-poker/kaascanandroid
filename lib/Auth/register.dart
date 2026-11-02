@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
-import 'package:kaascan/Auth/login_new.dart';
 import 'package:kaascan/Auth/pinAuth.dart';
+import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:phone_form_field/phone_form_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
@@ -9,6 +9,7 @@ import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../Api/client.dart';
 import '../services/language_service.dart';
 import '../screens/language_selector_screen.dart';
+import 'package:kaascan/sdk/kaascan_sdk.dart';
 
 const Color myColor = Color.fromARGB(255, 0, 34, 255);
 const Color myWhite = Colors.white;
@@ -81,7 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _showModernDialog(
             title: languageService.t(
               'auth.account_exists_title',
-              fallback: "Mufite Konti 🎯",
+              fallback: "Mufite Konti",
             ),
             message: languageService.t(
               'auth.account_exists_message',
@@ -152,7 +153,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: deepNavy,
+        backgroundColor: const Color.fromARGB(255, 183, 196, 255),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
@@ -160,7 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               isError
                   ? Icons.error_outline_rounded
                   : Icons.check_circle_outline_rounded,
-              color: isError ? Colors.redAccent : Colors.tealAccent,
+              color: isError ? Colors.redAccent : myBlue,
               size: 28,
             ),
             const SizedBox(width: 12),
@@ -420,7 +421,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       width: double.infinity,
       height: double.infinity,
-      decoration: const BoxDecoration(color: Color.fromARGB(255, 255, 60, 0)),
+      decoration: const BoxDecoration(color: myBlue),
       child: Stack(
         children: [
           // Positioned(
@@ -572,7 +573,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: ElevatedButton(
         onPressed: _handleSignup,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color.fromARGB(255, 255, 60, 0),
+          backgroundColor: myBlue,
           foregroundColor: myWhite,
           elevation: 0,
           shape: RoundedRectangleBorder(

@@ -3,19 +3,16 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:kaascan/Api/client.dart';
-import 'package:kaascan/Auth/login_new.dart';
 import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:kaascan/Auth/pinAuth.dart';
 import 'package:kaascan/Auth/register.dart';
-import 'package:kaascan/dashboard/transactions.dart';
-import 'package:kaascan/onBoradingScreen.dart';
+import 'package:kaascan/sdk/kaascan_sdk.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:phone_form_field/phone_form_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../screens/language_selector_screen.dart';
 import 'package:crypto/crypto.dart';
-import 'package:http/http.dart' as http;
 import '../services/language_service.dart';
+import '../screens/language_selector_screen.dart';
 
 const Color myColor = Color.fromARGB(255, 0, 34, 255);
 const Color myWhite = Colors.white;
@@ -28,25 +25,22 @@ const Color successGreen = Color(0xFF10B981);
 const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
 
 class loginScreen extends StatefulWidget {
-  const loginScreen({super.key});
+  final bool force_login;
+  const loginScreen({super.key, this.force_login = true});
 
   @override
-  State<loginScreen> createState() {
-    return _loginScreenState();
-  }
+  State<loginScreen> createState() => _loginScreenState();
 }
 
 class _loginScreenState extends State<loginScreen> {
   final phoneController = PhoneController();
   bool _isChecking = true;
 
-  Future<void> storePhonenumber(phone) async {
-    if (phone != "") {
-      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      // Combine stable properties
-      String rawData =
-          '''
+  Future<void> storePhonenumber(String phone, String role) async {
+    if (phone.isEmpty) return;
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+    String rawData = '''
 BRAND:${androidInfo.brand}
 MODEL:${androidInfo.model}
 MANUFACTURER:${androidInfo.manufacturer}
@@ -59,23 +53,20 @@ DEVICE:${androidInfo.device}
 HOST:${androidInfo.host}
 TAGS:${androidInfo.tags}
 ''';
-      // Create a hash so you don't store raw info
-      var bytes = utf8.encode(rawData);
-      var hash = sha256.convert(bytes).toString();
-      print('device hash ${hash}'); // e.g. "Moto G (4)"
-      var tempStorage = await SharedPreferences.getInstance();
-      tempStorage.setString("phonenumber", "0$phone");
-      tempStorage.setString("device_id", hash);
-      tempStorage.setBool("logged_in", true);
-    } else {
-      print("Please define valid user phone number");
-    }
+    var bytes = utf8.encode(rawData);
+    var hash = sha256.convert(bytes).toString();
+    debugPrint('device hash: $hash');
+    var tempStorage = await SharedPreferences.getInstance();
+    tempStorage.setString("phonenumber", "0$phone");
+    tempStorage.setString("device_id", hash);
+    tempStorage.setString("user_role", role);
+    tempStorage.setBool("logged_in", true);
   }
 
   Future<void> checkIsloggedin() async {
     var tempStorage = await SharedPreferences.getInstance();
     bool? loggedInFlag = tempStorage.getBool("logged_in");
-    bool? login_new = tempStorage.getBool("login_new");
+    String role = tempStorage.getString("user_role") ?? "parent";
 
     if (loggedInFlag == true) {
       final phoneNumber = tempStorage.getString("phonenumber");
@@ -85,7 +76,10 @@ TAGS:${androidInfo.tags}
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => UnifiedAuthScreen(phoneNumber: phoneNumber),
+            builder: (context) => UnifiedAuthScreen(
+              phoneNumber: phoneNumber,
+              role: role,
+            ),
           ),
         );
         return;
@@ -93,12 +87,15 @@ TAGS:${androidInfo.tags}
 
       try {
         if (phoneNumber == null) return;
-        var o = await app.Login(context, phoneNumber, "");
+        var o = await app.Login(context, phoneNumber, "", role: role);
         if (o.statusCode == 200 && o.data['status'] == "success") {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => pinScreen(phonenumber: phoneNumber),
+              builder: (context) => pinScreen(
+                phonenumber: phoneNumber,
+                role: role,
+              ),
             ),
           );
         } else {
@@ -109,17 +106,10 @@ TAGS:${androidInfo.tags}
           tempStorage.setBool("logged_in", false);
         }
       } catch (e) {
-        print("Error occured: $e");
+        debugPrint("Error checking login: $e");
       }
     } else {
-      print("Please login to continue");
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => loginScreen_new()),
-      );
-
-      // print("is Loggedin $isLoggedin");
+      debugPrint("Not logged in — showing login form");
     }
   }
 
@@ -136,371 +126,466 @@ TAGS:${androidInfo.tags}
   Future<void> _checkLoginStatus() async {
     await checkIsloggedin();
     if (mounted) {
-      setState(() {
-        _isChecking = false;
-      });
+      setState(() => _isChecking = false);
     }
   }
 
   @override
   void initState() {
     super.initState();
-    // Set initial phone number with Rwanda country code +250 (no national number yet)
     phoneController.value = PhoneNumber(nsn: '', isoCode: IsoCode.RW);
-    _checkLoginStatus();
+    Future.microtask(() => _checkLoginStatus());
   }
 
   @override
   Widget build(BuildContext context) {
-    Future<void> updateFcmTokenIfPhoneExists(_phone) async {
-      final prefs = await SharedPreferences.getInstance();
-      final phone = _phone;
-      final fcmToken = prefs.getString('fcm_token');
-      if (phone != null && fcmToken != null) {
-        try {
-          const n8nWebhookUrl =
-              'https://automation.kaascan.com/webhook/update-fcm';
-          final body = jsonEncode({
-            "phone": phone,
-            "fcm_token": fcmToken,
-            "timestamp": DateTime.now().toIso8601String(),
-          });
-          final response = await http.post(
-            Uri.parse(n8nWebhookUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: body,
-          );
-          if (response.statusCode == 200) {
-            print('FCM token updated successfully for $phone');
-          } else {
-            print('Failed to update FCM token: ${response.statusCode}');
-          }
-        } catch (e) {
-          print('Error updating FCM token: $e');
-        }
-      }
-    }
-
     if (_isChecking) {
       return Scaffold(
+        backgroundColor: deepNavy,
         body: Center(
           child: LoadingAnimationWidget.discreteCircle(
             color: myColor,
-
             size: 60,
           ),
         ),
       );
-    } else {
-      return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              myWhite, // Left side color
-              myColor, // Right side color
-            ],
-            stops: [0.5, 0.5], // Split exactly in the middle
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          // Background
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(color: myBlue),
           ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: MediaQuery.sizeOf(context).width,
-              height: MediaQuery.sizeOf(context).height / 2,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage("assets/images/money.png"),
-                  opacity: 0.2,
-                ),
-                color: myColor,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(40),
-                ),
-              ),
+
+          // Main Content
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(40),
-                    child: Stack(
+                  const SizedBox(height: 40),
+                  _buildHeader(),
+                  const SizedBox(height: 40),
+                  _buildGlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Align(
-                          alignment: Alignment.topRight,
-                          child: TextButton.icon(
-                            onPressed: _showLanguagePicker,
-                            icon: const Icon(
-                              Icons.language,
-                              color: Colors.white,
-                            ),
-                            label: Text(
-                              languageService
-                                      .getCurrentLanguage()
-                                      ?.code
-                                      .toUpperCase() ??
-                                  "EN",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            style: TextButton.styleFrom(
-                              backgroundColor: Colors.white.withOpacity(0.1),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
+                        Text(
+                          languageService.t('auth.login', fallback: "Injira"),
+                          style: const TextStyle(
+                            color: myColor,
+                            fontSize: 32,
+                            fontFamily: "gilroy",
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        Center(
-                          child: Column(
-                            children: [
-                              Image.asset(
-                                "assets/images/white_logo.png",
-                                scale: 6,
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                languageService.t(
-                                  'auth.motto',
-                                  fallback:
-                                      "“Kurinda, gukunda no kwita ku bana bacu hamwe.”",
-                                ),
-                                style: TextStyle(
-                                  color: myOpblue,
-                                  fontSize: 18,
-                                  fontFamily: "gilroy",
-                                  decorationColor: const Color.fromARGB(
-                                    0,
-                                    200,
-                                    55,
-                                    55,
-                                  ), // Makes underline invisible
-                                  decorationStyle: TextDecorationStyle.solid,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                        const SizedBox(height: 8),
+                        Text(
+                          languageService.t(
+                            'auth.login_subtitle',
+                            fallback: "Ishyiramo nimero yawe kugira ngo ukomeze",
+                          ),
+                          style: const TextStyle(
+                            color: myColor,
+                            fontSize: 14,
+                            fontFamily: "gilroy-light",
                           ),
                         ),
+                        const SizedBox(height: 32),
+                        _buildPhoneInput(),
+                        const SizedBox(height: 24),
+                        _buildPrivacyInfo(),
+                        const SizedBox(height: 32),
+                        _buildLoginButton(),
+                        const SizedBox(height: 16),
+                        _buildForgotPinButton(),
                       ],
                     ),
                   ),
-                  Expanded(
-                    child: Align(
-                      child: Text(
-                        languageService.t('auth.login', fallback: "Injira"),
-                        style: const TextStyle(
-                          color: myWhite,
-                          fontFamily: "gilroy",
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          decorationColor: Colors.transparent,
-                        ),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 20),
+                  _buildFooterLink(),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
-            Container(
-              decoration: BoxDecoration(
-                color: myWhite,
-                borderRadius: BorderRadius.only(topRight: Radius.circular(40)),
+          ),
+
+          // Language Selector
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            right: 20,
+            child: _buildLanguageSelector(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageSelector() {
+    final currentLang = languageService.getCurrentLanguage();
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const LanguageSelectorScreen()),
+            );
+            if (result == true && mounted) setState(() {});
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  currentLang?.flagEmoji ?? '🇷🇼',
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  currentLang?.code.toUpperCase() ?? 'RW',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontFamily: "gilroy-light",
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Hero(
+          tag: 'logo',
+          child: Image.asset("assets/images/white_logo.png", scale: 3.5),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGlassCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: myWhite,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.transparent, width: 1),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildPhoneInput() {
+    return Container(
+      decoration: BoxDecoration(
+        color: myWhite.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: myWhite.withOpacity(0.1), width: 1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: PhoneFormField(
+          controller: phoneController,
+          autofocus: false,
+          isCountryButtonPersistent: true,
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            hintText: languageService.t('auth.phone_number', fallback: "Nimero ya telefoni"),
+            hintStyle: TextStyle(
+              fontFamily: "gilroy-light",
+              color: const Color.fromARGB(255, 0, 60, 255).withOpacity(0.4),
+              fontSize: 16,
+            ),
+          ),
+          style: const TextStyle(
+            color: myColor,
+            fontFamily: "gilroy-light",
+            fontSize: 24,
+            fontWeight: FontWeight.w100,
+          ),
+          countryButtonStyle: CountryButtonStyle(
+            textStyle: const TextStyle(
+              color: myColor,
+              fontFamily: "gilroy-light",
+              fontSize: 24,
+              fontWeight: FontWeight.w100,
+              shadows: [],
+            ),
+            showFlag: true,
+            dropdownIconColor: const Color.fromARGB(255, 0, 64, 255),
+          ),
+          isCountrySelectionEnabled: false,
+          keyboardType: TextInputType.number,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyInfo() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.shield_outlined, color: myColor, size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            languageService.t(
+              'auth.privacy_info_register',
+              fallback: "Amakuru yawe bwite azagirwa ibanga kandi arindwe neza. Ntuzigere usangira konti yawe n'undi muntu.",
+            ),
+            style: const TextStyle(
+              color: myColor,
+              fontFamily: "gilroy-light",
+              fontSize: 11,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 64,
+      child: ElevatedButton(
+        onPressed: _handleLogin,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: myBlue,
+          foregroundColor: myWhite,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              languageService.t('auth.login', fallback: "Injira"),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                fontFamily: "gilroy-light",
               ),
-              width: MediaQuery.sizeOf(context).width,
-              height: MediaQuery.sizeOf(context).height / 2,
-              child: Column(
-                children: [
-                  SizedBox(height: 50),
-                  Material(
-                    color: Color.fromARGB(255, 255, 60, 0),
-                    child: Container(
-                      child: PhoneFormField(
-                        focusNode: FocusNode(),
-                        controller: phoneController,
-                        autofocus: true,
-                        isCountryButtonPersistent: false,
-                        // initialValue: PhoneNumber.parse('+250'),
-                        decoration: InputDecoration(
-                          fillColor: Colors.transparent,
-                          focusColor: Colors.transparent,
-                          border: InputBorder.none,
-                          hintText: languageService.t(
-                            'auth.phone_number',
-                            fallback: "Phonenumber",
-                          ),
-                          hintStyle: const TextStyle(
-                            fontFamily: "gilroy",
-                            color: myColor,
-                            fontSize: 16,
-                          ),
-                        ),
-                        style: TextStyle(
-                          color: myColor,
-                          fontFamily: "gilroy",
-                          fontSize: 35,
-                        ),
-                        countryButtonStyle: CountryButtonStyle(
-                          textStyle: TextStyle(
-                            color: myColor,
-                            fontFamily: "gilroy",
-                            fontSize: 40,
-                          ),
-                          // showIsoCode: false,
-                          // showDialCode: true,
-                          showFlag: true,
-                          dropdownIconColor: myColor,
-                        ),
-                        isCountrySelectionEnabled: false,
-                        keyboardType: TextInputType.number,
-                      ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.arrow_forward_rounded, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleLogin() async {
+    Loader.show(
+      context,
+      progressIndicator: LoadingAnimationWidget.discreteCircle(
+        color: myColor,
+        size: 60,
+      ),
+    );
+
+    String nsn = phoneController.value.nsn;
+    if (nsn.startsWith('0') && nsn.length == 10) {
+      nsn = nsn.substring(1);
+    }
+
+    if (nsn.isEmpty) {
+      Loader.hide();
+      _showModernErrorDialog();
+      return;
+    }
+
+    try {
+      var result = await app.Login(context, "0$nsn", "", role: "parent");
+      Loader.hide();
+
+      if (result.statusCode == 200 && result.data['status'] == "success") {
+        await storePhonenumber(nsn, "parent");
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => pinScreen(
+              phonenumber: "0$nsn",
+              role: "parent",
+            ),
+          ),
+        );
+      } else {
+        _showModernErrorDialog();
+      }
+    } catch (e) {
+      Loader.hide();
+      debugPrint("Login error: $e");
+      _showModernErrorDialog();
+    }
+  }
+
+  Widget _buildForgotPinButton() {
+    return Center(
+      child: TextButton(
+        onPressed: () async {
+          String nsn = phoneController.value.nsn;
+          if (nsn.startsWith('0') && nsn.length == 10) {
+            nsn = nsn.substring(1);
+          }
+
+          if (nsn.isNotEmpty) {
+            Loader.show(
+              context,
+              progressIndicator: LoadingAnimationWidget.discreteCircle(
+                color: myColor,
+                size: 60,
+              ),
+            );
+
+            try {
+              var result = await app.Login(context, "0$nsn", "");
+              Loader.hide();
+              if (result.statusCode == 200 && result.data['status'] == "success") {
+                kaascan_sdk().updateFcmTokenIfPhoneExists(nsn).then((msg) {
+                  debugPrint("[*] kcn updated successfully");
+                });
+
+                if (!mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => pinScreen(
+                      phonenumber: "0$nsn",
+                      isReset: true,
                     ),
                   ),
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.info, color: myColor),
-                      Text(
-                        languageService.t(
-                          'auth.privacy_message',
-                          fallback:
-                              "Amakuru yawe bwite azagirwa\n ibanga kandi arindwe neza.",
-                        ),
-                        style: TextStyle(
-                          color: myOpblue,
-                          fontFamily: "gilroy",
-                          fontSize: 14,
-                          decorationColor: Colors.transparent,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        languageService.t(
-                          'auth.dont_have_account',
-                          fallback: "Nturagira konti? ",
-                        ),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.black,
-                          fontFamily: 'gilroy',
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-                      SizedBox(height: 20),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RegisterScreen(),
-                            ),
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey[700], // Text color
-                          textStyle: TextStyle(
-                            fontFamily: 'Gilroy',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        child: Text(
-                          languageService.t(
-                            'auth.register',
-                            fallback: "Register",
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 40),
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: myColor,
-                          ),
-                          icon: Icon(Icons.lock, color: myWhite),
-                          onPressed: () async {
-                            Loader.show(
-                              context,
-                              progressIndicator:
-                                  LoadingAnimationWidget.discreteCircle(
-                                    secondRingColor: myOpblue,
-                                    thirdRingColor: myColor,
-                                    color: myWhite,
-                                    size: 60,
-                                  ),
-                            );
-                            //login user
-                            var app = new backendClient();
-                            try {
-                              String nsn = phoneController.value.nsn;
-                              // Normalize: if user enters 10 digits (e.g., 078...) instead of 9, strip the leading 0
-                              if (nsn.startsWith('0') && nsn.length == 10) {
-                                nsn = nsn.substring(1);
-                              }
-
-                              var result = await app.Login(
-                                context,
-                                "0$nsn",
-                                "",
-                              );
-                              Loader.hide(); // Hide loader after response
-                              if (result.statusCode == 200 &&
-                                  result.data['status'] == "success") {
-                                await storePhonenumber(nsn);
-
-                                updateFcmTokenIfPhoneExists(nsn).then(
-                                  (msg) => {print("Fcm updated successfully")},
-                                );
-
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        pinScreen(phonenumber: "0$nsn"),
-                                  ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Invalid OTP")),
-                                );
-                                print("reg failed notification needed");
-                              }
-                            } catch (e) {
-                              Loader.hide(); // Hide loader on error
-                              print("Error occurred: $e");
-                            }
-                          },
-                          label: Text(
-                            languageService.t('auth.login', fallback: "Injira"),
-                            style: const TextStyle(
-                              color: myWhite,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                );
+              } else {
+                _showModernErrorDialog();
+              }
+            } catch (e) {
+              Loader.hide();
+              debugPrint("Error during forgot PIN: $e");
+            }
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Please enter your phone number first")),
+            );
+          }
+        },
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              languageService.t('auth.forgot_pin_reset', fallback: "Forgot PIN?"),
+              style: const TextStyle(
+                color: myColor,
+                fontFamily: "gilroy-light",
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              languageService.t('auth.reset_here', fallback: " Reset here"),
+              style: const TextStyle(
+                color: Color.fromARGB(177, 0, 0, 255),
+                fontFamily: "gilroy",
+                fontSize: 13,
               ),
             ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  void _showModernErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color.fromARGB(255, 162, 179, 255),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              languageService.t('errors.login_failed', fallback: "Kwinjira byanze"),
+              style: const TextStyle(
+                color: myWhite,
+                fontWeight: FontWeight.bold,
+                fontFamily: "gilroy-light",
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          languageService.t(
+            'errors.login_error_message',
+            fallback: "Nyamuneka reba neza nimero yawe ya telefoni cyangwa ugenzure ko ufite internet ikora neza.",
+          ),
+          style: TextStyle(color: myWhite.withOpacity(0.7), fontFamily: "gilroy-light"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK", style: TextStyle(color: myColor, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterLink() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          languageService.t('auth.no_account_yet', fallback: "Nturagira konti? "),
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontFamily: 'gilroy-light',
+          ),
+        ),
+        GestureDetector(
+          onTap: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const RegisterScreen()),
+            );
+          },
+          child: Text(
+            languageService.t('auth.register_here', fallback: "Iyandikishe hano"),
+            style: const TextStyle(
+              color: Color.fromARGB(255, 255, 153, 0),
+              fontWeight: FontWeight.bold,
+              fontFamily: "gilroy-light",
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

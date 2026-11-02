@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kaascan/Api/client.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -95,7 +97,7 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
   }
 
   Future<void> _handleTransfer() async {
-    final double? amountValue = double.tryParse(_amount);
+    final double? amountValue = double.tryParse(_amount)! + _estimatedFee;
     if (amountValue == null || amountValue <= 0) return;
 
     setState(() => _isLoading = true);
@@ -114,6 +116,14 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
         widget.student["student_id"],
         _descriptionController.text,
       );
+
+      print({
+        xtoken,
+        token,
+        amountValue,
+        widget.student["student_id"],
+        _descriptionController.text,
+      });
 
       if (!mounted) return;
 
@@ -351,7 +361,7 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
                               'deposit.total',
                               fallback: 'Total:',
                             ),
-                            "${_formatCurrency(((double.tryParse(_amount) ?? 0) - (_estimatedFee < 0 ? 0 : _estimatedFee)).clamp(0, double.infinity).toStringAsFixed(0))} RWF",
+                            "${_formatCurrency(((double.tryParse(_amount) ?? 0) + (_estimatedFee < 0 ? 0 : _estimatedFee)).clamp(0, double.infinity).toStringAsFixed(0))} RWF",
                             isBold: true,
                           ),
                         ],
@@ -546,7 +556,13 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
         shape: BoxShape.circle,
         color: Colors.grey[200],
         image: url != null && url.isNotEmpty
-            ? DecorationImage(image: NetworkImage(url), fit: BoxFit.cover)
+            ? DecorationImage(
+                image: CachedNetworkImageProvider(url),
+                fit: BoxFit.cover,
+                onError: (exception, stackTrace) {
+                  // Handle silently
+                },
+              )
             : null,
       ),
       child: (url == null || url.isEmpty)

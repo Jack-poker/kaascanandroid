@@ -1,19 +1,21 @@
 name: kaascan
 description: Rwanda Schools Solution
 publish_to: none
-version: 2.0.0+28
+version: 3.0.0+30
 environment:
   sdk: ^3.8.1
 dependencies:
   flutter:
     sdk: flutter
+  qaad_shared:
+    path: /home/quantumbytes/Documents/Qaad/qaad_sdk
+
   cupertino_icons: ^1.0.8
   splasher: ^0.1.1
   super_animated_navigation_bar: ^1.0.2
   smooth_sheets: ^0.14.0
   modal_bottom_sheet: ^3.0.0
   wheel_slider: ^1.2.2
-  all_vibrate: ^0.0.2
   showcaseview: ^4.0.1
   flutter_portal: ^1.1.4
   sleek_circular_slider: ^2.1.0
@@ -22,7 +24,9 @@ dependencies:
   flutter_advanced_avatar: ^1.5.2
   pretty_qr_code: ^3.5.0
   scanning_effect: ^1.0.11
-  ai_barcode_scanner: ^7.0.0
+  mobile_scanner: ^7.2.0
+  awesome_mobile_scanner: ^0.0.4
+  
   phone_form_field: ^10.0.8
   dio: ^5.5.0+1
   loader_overlay: ^5.0.0
@@ -41,11 +45,11 @@ dependencies:
   flutter_overlay_loader: ^2.0.0
   geolocator: ^14.0.2
   permission_handler: ^12.0.1
-  firebase_messaging: ^16.0.0
-  firebase_in_app_messaging: ^0.9.0
   change_app_package_name: ^1.5.0
-  google_api_availability: ^5.0.1
   url_launcher: ^6.3.2
+  flutter_zxing: ^3.1.0
+  image: ^4.0.0
+
 
   get: ^4.7.2
   flutter_html: ^3.0.0
@@ -58,12 +62,16 @@ dependencies:
   country_code_picker: ^3.4.1
   audioplayers: ^6.1.0
   animated_text_kit: ^4.2.2
-  nfc_manager: ^4.1.1
-  wiseasy_thermal_printer: ^0.0.1
-  sqflite: ^2.4.2
   cached_network_image: ^3.4.1
-  path: ^1.9.1
-  bcrypt: ^1.2.0
+  google_fonts: ^8.1.0
+  doc_text_extractor: ^2.1.0
+  ntfy: ^1.0.2
+  cli_table: ^1.0.2
+  printing: ^5.15.1
+ 
+
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -87,6 +95,8 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/sound/
+    - assets/pin_guide.png
+   
 
 
 
@@ -105,6 +115,10 @@ flutter:
     - family: gilroy-light
       fonts:
         - asset: fonts/Gilroy-Light.otf
+
+    - family: minigap
+      fonts:
+        - asset: fonts/minigap.otf
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
   #

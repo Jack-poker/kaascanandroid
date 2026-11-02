@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
-import 'package:kaascan/dashboard/shopTransafer.dart';
+// Shop transfer removed
 import 'package:lottie/lottie.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 
@@ -154,8 +154,8 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                         _buildModernButton(
                                           btnColor: myColor,
                                           context: context,
-                                          label: "Parent",
-                                          icon: Icons.person,
+                                          label: "Gukomeza",
+                                          icon: Icons.arrow_forward_ios,
                                           width: buttonWidth,
                                           height: buttonHeight,
                                           onPressed: () {
@@ -168,29 +168,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                             );
                                           },
                                         ),
-                                        SizedBox(width: size.width * 0.01),
-                                        _buildModernButton(
-                                          btnColor: const Color.fromARGB(
-                                            255,
-                                            255,
-                                            60,
-                                            0,
-                                          ),
-                                          context: context,
-                                          label: "Shop",
-                                          icon: Icons.business,
-                                          width: buttonWidth,
-                                          height: buttonHeight,
-                                          onPressed: () {
-                                            Navigator.pushReplacement(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const Transfer(),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                                        // Shop button removed
                                       ],
                                     )
                                   : Column(
@@ -214,24 +192,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                             );
                                           },
                                         ),
-                                        SizedBox(height: size.height * 0.02),
-                                        _buildModernButton(
-                                          btnColor: Colors.green,
-                                          context: context,
-                                          label: "Business",
-                                          icon: Icons.business,
-                                          width: buttonWidth * 1.5,
-                                          height: buttonHeight,
-                                          onPressed: () {
-                                            Navigator.pushReplacement(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const Transfer(),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                                        // Business button removed
                                       ],
                                     ),
                               SizedBox(height: size.height * 0.05),
@@ -251,7 +212,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                               ),
                               SizedBox(height: size.height * 0.02),
                               Text(
-                                "version 2.0.3",
+                                "version 3.0.0",
                                 style: TextStyle(
                                   color: myColor.withOpacity(0.5),
                                   fontSize: 10,
@@ -288,14 +249,14 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: btnColor.withOpacity(0.3),
-            blurRadius: 12,
-            offset: Offset(0, 6),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(100),
+        // boxShadow: [
+        //   BoxShadow(
+        //     color: btnColor.withOpacity(0.3),
+        //     blurRadius: 12,
+        //     offset: Offset(0, 6),
+        //   ),
+        // ],
       ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(

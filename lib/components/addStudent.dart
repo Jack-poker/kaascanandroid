@@ -1,4 +1,4 @@
-import 'package:ai_barcode_scanner/ai_barcode_scanner.dart';
+// import 'package:ai_barcode_scanner/ai_barcode_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
@@ -7,6 +7,8 @@ import 'package:kaascan/dashboard/home.dart';
 import 'package:kaascan/onBoradingScreen.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 
 import 'package:phone_form_field/phone_form_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -596,9 +598,12 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                                     radius: 28,
                                     backgroundImage:
                                         s['student_photo_url'] != null
-                                        ? NetworkImage(s['student_photo_url'])
+                                        ? CachedNetworkImageProvider(s['student_photo_url'])
                                         : null,
                                     backgroundColor: Colors.grey[200],
+                                    onBackgroundImageError: (exception, stackTrace) {
+                                      // Fail silently to keep user screen clean
+                                    },
                                     child: s['student_photo_url'] == null
                                         ? Text(
                                             s['student_name']
@@ -696,25 +701,19 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                   ),
                   child: ClipOval(
                     child: _studentProfile!['student_photo_url'] != null
-                        ? Image.network(
-                            _studentProfile!['student_photo_url'],
+                        ? CachedNetworkImageWrapper(
+                            imageUrl: _studentProfile!['student_photo_url'],
                             fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: LoadingAnimationWidget.discreteCircle(
-                                  // secondRingColor: myOpblue,
-                                  // thirdRingColor: myColor,
-                                  color: myColor,
-                                  size: 40,
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(Icons.person, size: 100);
-                            },
+                            placeholder: Center(
+                              child: LoadingAnimationWidget.discreteCircle(
+                                color: myColor,
+                                size: 40,
+                              ),
+                            ),
+                            errorWidget: const Icon(Icons.person, size: 100),
                           )
                         : const Icon(Icons.person, size: 100),
+
                   ),
                 ),
               ),
@@ -836,7 +835,11 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
               minScale: 0.5,
               maxScale: 4,
               child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, fit: BoxFit.contain)
+                  ? CachedNetworkImageWrapper(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.contain,
+                      errorWidget: const Icon(Icons.person, size: 100, color: Colors.white),
+                    )
                   : const Icon(Icons.person, size: 100, color: Colors.white),
             ),
             Positioned(

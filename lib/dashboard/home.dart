@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
-
+import 'package:google_fonts/google_fonts.dart';
 import 'package:kaascan/Auth/login.dart';
-import 'package:kaascan/Auth/login_new.dart' hide lightBlue, myOpblue;
 import 'package:kaascan/dashboard/profile.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 
-import 'package:all_vibrate/all_vibrate.dart';
+
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,9 @@ import 'package:kaascan/dashboard/students.dart';
 import 'package:kaascan/dashboard/transactions.dart';
 import 'package:kaascan/main.dart' hide lightBlue, myOpblue;
 import 'package:kaascan/onBoradingScreen.dart' hide myOpblue;
+import 'package:kaascan/provider/values_provider.dart';
+import 'package:kaascan/screens/kaascan_ai.dart';
+import 'package:provider/provider.dart';
 import 'package:kaascan/splash.dart' hide lightBlue;
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -191,9 +195,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
           if (!mounted) return;
           setState(() {
-            recentTransactions = List<Map<String, dynamic>>.from(
-              rawTransactions,
-            );
+            recentTransactions =
+                List<Map<String, dynamic>>.from(rawTransactions).where((tx) {
+                  // Read both amount_sent (new API) and amount (old API)
+                  final raw = (tx['amount_sent'] ?? tx['amount'] ?? 0);
+                  final amount = (raw is num)
+                      ? raw.toDouble()
+                      : double.tryParse(raw.toString()) ?? 0.0;
+                  return amount != 0; // Filter out 0-amount transactions
+                }).toList();
           });
         }
       }
@@ -329,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const loginScreen_new()),
+          MaterialPageRoute(builder: (context) => const loginScreen()),
         );
       }
       return;
@@ -359,14 +369,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 fallback: "Please log in as a Parent to access this dashboard.",
               ),
             ),
-            backgroundColor: Color.fromARGB(255, 255, 60, 0),
+            backgroundColor: Colors.lightGreen,
             duration: Duration(seconds: 5),
           ),
         );
 
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const loginScreen_new()),
+          MaterialPageRoute(builder: (context) => const loginScreen()),
           (route) => false,
         );
         return;
@@ -450,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         Container(
                           margin: const EdgeInsets.all(16),
                           padding: const EdgeInsets.all(0),
-                     
+
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
@@ -498,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
-                         const SizedBox(height: 20),
+                        const SizedBox(height: 20),
                         _buildSendAgainSection(),
                         const SizedBox(height: 40),
                       ],
@@ -560,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                   child: const Icon(
                     CupertinoIcons.mail_solid,
-                    color: Color.fromARGB(255, 255, 60, 0),
+                    color: Colors.lightGreen,
                     size: 48,
                   ),
                 ),
@@ -720,7 +730,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Text(
               languageService.t('home.title', fallback: 'Kaascan'),
               style: const TextStyle(
-                color: Color.fromARGB(255, 255, 42, 0),
+                color: Color.fromARGB(255, 0, 34, 255),
                 fontSize: 35,
                 fontWeight: FontWeight.w900,
                 fontFamily: "gilroy",
@@ -859,7 +869,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 255, 60, 0),
+                    color: Colors.lightGreen,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -1050,23 +1060,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     switch (ad.type) {
       case AdType.image:
       case AdType.gif:
-        return Image.network(
-          ad.url!,
+        return CachedNetworkImageWrapper(
+          imageUrl: ad.url!,
           width: double.infinity,
           height: double.infinity,
           fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: LoadingAnimationWidget.discreteCircle(
-                color: brandBlue,
-                size: 30,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Center(child: Icon(Icons.error_outline, color: softGray));
-          },
+          placeholder: Center(
+            child: LoadingAnimationWidget.discreteCircle(
+              color: brandBlue,
+              size: 30,
+            ),
+          ),
+          errorWidget: Center(child: Icon(Icons.error_outline, color: softGray)),
         );
       case AdType.lottie:
         return Lottie.network(
@@ -1114,7 +1119,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onTap: () {
               openAddStudentDialog(context, deepNavy);
             },
-            btn_color: const Color.fromARGB(255, 255, 218, 194),
+            btn_color: const Color.fromARGB(255, 255, 255, 255),
             text_color: myColor,
             icon_color: myColor,
           ),
@@ -1125,7 +1130,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             label: languageService.t('home.history', fallback: "History"),
             icon: CupertinoIcons.time,
             onTap: _showNotifications,
-            btn_color: _appLoading ? myOpblue : Color.fromARGB(255, 255, 60, 0),
+            btn_color: _appLoading ? myOpblue : myColor,
             text_color: myWhite,
             icon_color: Colors.white,
           ),
@@ -1165,9 +1170,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const SizedBox(width: 10),
             Text(
               label,
-              style: TextStyle(
+              style: GoogleFonts.spaceGrotesk(
                 color: text_color,
-                fontFamily: "gilroy-light",
+
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
               ),
@@ -1177,8 +1182,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-
-
 
   Widget _buildPromoBanner() {
     return Container(
@@ -1269,7 +1272,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Color.fromARGB(255, 255, 60, 0).withOpacity(0.1),
+                  color: Colors.lightGreen.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: Color.fromARGB(255, 255, 255, 255)),
                 ),
@@ -1363,9 +1366,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       image: DecorationImage(
-                                        image:
-                                            student['profile_picture'] != null
-                                            ? NetworkImage(
+                                        image: student['profile_picture'] != null
+                                            ? CachedNetworkImageProvider(
                                                 student['profile_picture'],
                                               )
                                             : const AssetImage(
@@ -1373,6 +1375,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                                   )
                                                   as ImageProvider,
                                         fit: BoxFit.cover,
+                                        onError: (exception, stackTrace) {
+                                          // Handle silently
+                                        },
                                       ),
                                     ),
                                   ),
@@ -1487,7 +1492,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         fallback: "No Transactions Yet",
                       ),
                       style: const TextStyle(
-                        color: Color.fromARGB(255, 255, 60, 0),
+                        color: Colors.lightGreen,
                         fontFamily: "gilroy",
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -1520,10 +1525,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 itemCount: math.min(5, recentTransactions.length),
                 itemBuilder: (context, index) {
                   final t = recentTransactions[index];
-                  final amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
+                  // Read both amount_sent (new API) and amount (old API)
+                  final raw = (t['amount_sent'] ?? t['amount'] ?? 0);
+                  final amount = (raw is num)
+                      ? raw.toDouble()
+                      : double.tryParse(raw.toString()) ?? 0.0;
                   final isNegative = amount < 0;
                   final status =
-                      t['status']?.toString().toLowerCase() ?? 'pending';
+                      (t['transaction_status'] ?? t['status'] ?? 'pending')
+                          .toString()
+                          .toLowerCase();
 
                   Color cardBg;
                   Color iconBg;
@@ -1532,19 +1543,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
                   if (status == 'failed') {
                     cardBg = const Color(0xFFFFEBEE); // Super light red
-                    iconBg = const Color.fromARGB(255, 0, 26, 255);// Vivid red
+                    iconBg = const Color.fromARGB(255, 0, 26, 255); // Vivid red
                     iconColor = Colors.white;
                     statusIcon = Icons.close_rounded;
                   } else if (status == 'pending') {
                     cardBg = const Color(0xFFFFF3E0); // Super light orange
-                    iconBg =  Color.fromARGB(255, 0, 26, 255);
+                    iconBg = Color.fromARGB(255, 0, 26, 255);
                     iconColor = Colors.white;
                     statusIcon = Icons.sync_rounded;
                   } else {
                     // Success / Completed
                     if (isNegative) {
-                      cardBg =  cardBg = const Color(0xFFFFF3E0);
-                      iconBg =  Color.fromARGB(255, 255, 55, 0);
+                      cardBg = cardBg = const Color(0xFFFFF3E0);
+                      iconBg = Color.fromARGB(255, 255, 55, 0);
                       iconColor = Colors.white;
                       statusIcon = Icons.arrow_upward_rounded;
                     } else {
@@ -1793,9 +1804,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (listStudent.isNotEmpty)
               TextButton.icon(
                 onPressed: () {
-                  setState(() {
-                    _currentIndex = 1;
-                  });
+                  currentIndex.value = 1;
                 },
                 icon: Icon(
                   Icons.arrow_forward_rounded,
@@ -1829,12 +1838,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   )
                 : listStudent,
             onAddStudent: () =>
-                openAddStudentDialog(context, Color.fromARGB(255, 255, 60, 0)),
+                openAddStudentDialog(context, Colors.lightGreen),
             onStudentTap: (index) {
               if (_appLoading) return;
-              setState(() {
-                _currentIndex = 1;
-              });
+              currentIndex.value = 1;
             },
           ),
       ],
@@ -1905,7 +1912,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             width: double.infinity,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color.fromARGB(255, 255, 60, 0),
+                backgroundColor: Colors.lightGreen,
                 foregroundColor: myWhite,
                 padding: EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(
@@ -1972,7 +1979,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               Color color;
               String title;
 
-              final status = t['status']?.toString().toLowerCase() ?? 'pending';
+              final status =
+                  (t['transaction_status'] ?? t['status'] ?? 'pending')
+                      .toString()
+                      .toLowerCase();
 
               if (status == 'failed') {
                 icon = Icons.error_outline_rounded;
@@ -2057,7 +2067,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             onPressed: () {},
             child: Icon(
               Icons.notifications,
-              color: Color.fromARGB(255, 255, 60, 0),
+              color: Colors.lightGreen,
             ),
           ),
         ],
@@ -2268,14 +2278,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Column(
           children: [
-            Image.asset("assets/icon.png", height: 60),
+            Image.asset("assets/logo_.png", height: 60),
             const SizedBox(height: 16),
             const Text(
               "Kaascan",
               style: TextStyle(
                 fontFamily: "gilroy",
                 fontWeight: FontWeight.bold,
-                color: Color.fromARGB(255, 255, 68, 0),
+                color: myBlue,
               ),
             ),
           ],
@@ -2287,19 +2297,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               languageService.t(
                 'settings.about_content',
                 fallback:
-                    "Kaascan is Rwanda's premium fintech solution for student pocket money management. Safe, secure, and transparent.",
+                    "Kaascan is Rwanda's fintech solution for student pocket money management. Safe, secure, and transparent.",
               ),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: "gilroy-light",
+                fontFamily: "gravitype",
                 height: 1.5,
                 color: Color.fromARGB(255, 0, 85, 255),
               ),
             ),
             const SizedBox(height: 16),
             const Text(
-              "Version 2.0.3",
-              style: TextStyle(color: myColor, fontSize: 12),
+              "Version 3.0.0",
+              style: TextStyle(color: myBlue, fontSize: 12),
             ),
           ],
         ),
@@ -2331,16 +2341,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 0, 30, 255),
       appBar: AppBar(
-        backgroundColor: myWhite,
+        backgroundColor: myColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: myColor),
+          icon: const Icon(Icons.arrow_back_ios_rounded, color: Color.fromARGB(255, 255, 255, 255)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           languageService.t('settings.settings', fallback: "Settings"),
           style: const TextStyle(
-            color: myColor,
+            color: Color.fromARGB(255, 255, 255, 255),
             fontFamily: "gilroy",
             fontWeight: FontWeight.w800,
             fontSize: 20,
@@ -2400,7 +2410,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Switch(
                   value: biometricsEnabled,
                   onChanged: _updateBiometrics,
-                  activeColor: Color.fromARGB(255, 255, 60, 0),
+                  activeColor: Colors.lightGreen,
                 ),
               ),
             ],
@@ -2425,7 +2435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Switch(
                   value: notificationsEnabled,
                   onChanged: _updateNotification,
-                  activeColor: Color.fromARGB(255, 255, 60, 0),
+                  activeColor: Colors.lightGreen,
                 ),
               ),
               _buildSettingItem(
@@ -2459,7 +2469,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _showFeatured = value;
                     });
                   },
-                  activeColor: Color.fromARGB(255, 255, 60, 0),
+                  activeColor: Colors.lightGreen,
                 ),
               ),
             ],
@@ -2487,7 +2497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.info_outline_rounded,
                 title: languageService.t('settings.about', fallback: "About"),
                 subtitle:
-                    "${languageService.t('settings.version', fallback: "Version")} 2.0.3",
+                    "${languageService.t('settings.version', fallback: "Version")} 3.0.0",
                 onTap: _showAboutDialog,
               ),
             ],
@@ -2567,11 +2577,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       leading: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-           myColor,myColor
-            ],
-          ),
+          gradient: LinearGradient(colors: [myColor, myColor]),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(icon, color: myWhite, size: 24),
@@ -2597,7 +2603,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           trailing ??
           const Icon(
             Icons.arrow_forward_ios_rounded,
-            color: Color.fromARGB(255, 255, 60, 0),
+            color: Colors.lightGreen,
             size: 16,
           ),
       onTap: onTap,
@@ -2613,20 +2619,40 @@ class DashboardNav extends StatefulWidget {
   State<DashboardNav> createState() => _DashboardNavState();
 }
 
-int _currentIndex = 0;
+ValueNotifier<int> currentIndex = ValueNotifier<int>(0);
 
 class _DashboardNavState extends State<DashboardNav> {
-  final vibrate = AllVibrate();
+
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex.value = 0; // Reset to first tab on fresh login
+    currentIndex.addListener(_onIndexChanged);
+  }
+
+  @override
+  void dispose() {
+    currentIndex.removeListener(_onIndexChanged);
+    super.dispose();
+  }
+
+  void _onIndexChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 195, 228, 255),
-      body: _currentIndex == 0
-          ? HomeScreen()
-          : _currentIndex == 1
+      backgroundColor: myBlue,
+      body: currentIndex.value == 0
+          ? ChangeNotifierProvider<ValuesProvider>(
+              create: (_) => ValuesProvider(),
+              child: Kaascan(),
+            )
+          : currentIndex.value == 1
           ? Students()
-          : _currentIndex == 2
+          : currentIndex.value == 2
           ? TransactionsScreen()
           : Students(),
       bottomNavigationBar: Container(
@@ -2656,11 +2682,11 @@ class _DashboardNavState extends State<DashboardNav> {
   }
 
   Widget _buildNavItem(int index, IconData icon) {
-    bool isSelected = _currentIndex == index;
+    bool isSelected = currentIndex.value == index;
     return GestureDetector(
       onTap: () {
-        setState(() => _currentIndex = index);
-        vibrate.simpleVibrate(period: 30, amplitude: 50);
+        currentIndex.value = index;
+     
       },
       child: Container(
         padding: const EdgeInsets.all(12),

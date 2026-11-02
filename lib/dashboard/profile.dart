@@ -195,7 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 24),
                         Center(
                           child: Text(
-                            "KaaScan Version 1.0.4",
+                            "KaaScan Version 3.0.0",
                             style: TextStyle(
                               color: softGray.withOpacity(0.5),
                               fontSize: 12,

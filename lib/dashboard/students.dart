@@ -1,11 +1,14 @@
 import 'dart:math';
-import 'package:ai_barcode_scanner/ai_barcode_scanner.dart';
-import 'package:all_vibrate/all_vibrate.dart';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_advanced_avatar/flutter_advanced_avatar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
+
 import 'package:kaascan/Api/client.dart';
 import 'package:kaascan/Api/config.dart';
+import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:kaascan/dashboard/home.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -74,16 +77,14 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
   late AnimationController _cardAnimationController;
   late Animation<double> _cardAnimation;
   WebSocketChannel? _channel;
-  late MobileScannerController addStudentScannerController;
-  
-  
+  // late MobileScannerController addStudentScannerController;
+
   void _showSettings() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => SettingsScreen()),
     );
   }
-
 
   @override
   void initState() {
@@ -94,11 +95,11 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    addStudentScannerController = MobileScannerController(
-      formats: [BarcodeFormat.qrCode],
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-    );
+    // addStudentScannerController = MobileScannerController(
+    //   formats: [BarcodeFormat.qrCode],
+    //   detectionSpeed: DetectionSpeed.normal,
+    //   facing: CameraFacing.back,
+    // );
     _cardAnimation = CurvedAnimation(
       parent: _cardAnimationController,
       curve: Curves.easeOutBack,
@@ -118,7 +119,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
     if (_channel != null) {
       _channel!.sink.close();
     }
-    addStudentScannerController.dispose();
+    // addStudentScannerController.dispose();
     super.dispose();
   }
 
@@ -344,8 +345,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
       try {
         final accountToken = await _getAccountToken();
         if (accountToken == null) throw Exception("No account token found");
-        final dio = Dio();
-        final response = await dio.get(
+        final response = await api_Call.get(
           "$Base_Url/students/find",
           queryParameters: {"student_id": studentId},
           options: Options(headers: {"Authorization": "Bearer $accountToken"}),
@@ -395,14 +395,12 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                             ),
                             child: ClipOval(
                               child: profilePic.isNotEmpty
-                                  ? Image.network(
-                                      profilePic,
+                                  ? CachedNetworkImageWrapper(
+                                      imageUrl: profilePic,
                                       width: 90,
                                       height: 90,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              _buildDefaultAvatar(),
+                                      errorWidget: _buildDefaultAvatar(),
                                     )
                                   : _buildDefaultAvatar(),
                             ),
@@ -676,7 +674,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
           builder: (context, setState) {
             Future<void> resetPin() async {
               if (reset_pin.text.length < 4) {
-                setState(() => statusMessage = "⚠️ PIN must be 4 digits");
+                setState(() => statusMessage = "[x]PIN must be 4 digits");
                 return;
               }
 
@@ -696,7 +694,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   setState(() {
                     studentPin = pin;
                     pin_input_visible = false;
-                    statusMessage = "✅ PIN successfully reset";
+                    statusMessage = "[*] PIN successfully reset";
                   });
                 } else {
                   setState(
@@ -704,7 +702,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   );
                 }
               } catch (e) {
-                setState(() => statusMessage = "⚠️ An error occurred: $e");
+                setState(() => statusMessage = "[x]An error occurred: $e");
               } finally {
                 setState(() => isResetting = false);
               }
@@ -847,7 +845,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: deepNavy,
+                          backgroundColor: myBlue,
                           foregroundColor: myWhite,
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           shape: RoundedRectangleBorder(
@@ -958,7 +956,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       statusMessage!,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: statusMessage!.contains("✅")
+                        color: statusMessage!.contains("[*]")
                             ? successGreen
                             : Colors.red,
                         fontSize: 14,
@@ -1092,7 +1090,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     backgroundColor: const Color.fromARGB(255, 195, 228, 255),
+      backgroundColor: myColor,
       body: Stack(
         children: [
           SafeArea(
@@ -1125,13 +1123,13 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
           // Loading overlay
           if (_appLoading)
             Container(
-              color: cloudWhite.withOpacity(0.8),
+              color: myBlue.withOpacity(0.8),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     LoadingAnimationWidget.discreteCircle(
-                      color: myColor,
+                      color: const Color.fromARGB(255, 255, 255, 255),
                       size: 60,
                     ),
                     SizedBox(height: 16),
@@ -1156,10 +1154,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
   Widget _buildHeader() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(0, 187, 202, 250),
-      
-      ),
+      decoration: BoxDecoration(color: const Color.fromARGB(0, 187, 202, 250)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1172,7 +1167,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   fontFamily: "gilroy-light",
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: myColor,
+                  color: Colors.white,
                 ),
               ),
               SizedBox(height: 4),
@@ -1183,7 +1178,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                 style: TextStyle(
                   fontFamily: "gilroy",
                   fontSize: 14,
-                  color: const Color.fromARGB(112, 105, 105, 105),
+                  color: const Color.fromARGB(255, 255, 255, 255),
                   fontWeight: FontWeight.w100,
                 ),
               ),
@@ -1195,7 +1190,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
               color: const Color.fromARGB(0, 244, 247, 255),
               borderRadius: BorderRadius.circular(14),
             ),
-            child:          GestureDetector(
+            child: GestureDetector(
               onTap: _showSettings,
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -1398,7 +1393,14 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
               minScale: 0.5,
               maxScale: 4,
               child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, fit: BoxFit.contain)
+                  ? CachedNetworkImageWrapper(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.contain,
+                      errorWidget: Image.asset(
+                        "assets/images/icons8-avatar-100.png",
+                        fit: BoxFit.contain,
+                      ),
+                    )
                   : Image.asset(
                       "assets/images/icons8-avatar-100.png",
                       fit: BoxFit.contain,
@@ -1448,7 +1450,14 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   "assets/images/icons8-avatar-100.png",
                   fit: BoxFit.cover,
                 )
-              : Image.network(imageUrl, fit: BoxFit.cover),
+              : CachedNetworkImageWrapper(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: Image.asset(
+                    "assets/images/icons8-avatar-100.png",
+                    fit: BoxFit.cover,
+                  ),
+                ),
         ),
       ),
     );
@@ -1519,13 +1528,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           color: const Color.fromARGB(255, 255, 255, 255),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+         
         ),
         child: SizedBox(
           width: 44,
@@ -1656,7 +1659,10 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/images/People search-cuate.png', height: 220),
+            SizedBox(
+              width:100,
+              height:100,
+              child: Image.asset('assets/addstudent.png', height: 220)),
             const SizedBox(height: 16),
             Text(
               languageService.t(
@@ -1664,10 +1670,10 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                 fallback: "No Students Yet",
               ),
               style: const TextStyle(
-                fontFamily: "gilroy",
+                fontFamily: "minigap",
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
-                color: Color.fromARGB(255, 255, 94, 0),
+                color: Color.fromARGB(255, 255, 255, 255),
               ),
             ),
             const SizedBox(height: 12),
@@ -1680,7 +1686,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
               style: const TextStyle(
                 fontFamily: "gilroy",
                 fontSize: 10,
-                color: Color.fromARGB(255, 0, 30, 255),
+                color: Color.fromARGB(255, 223, 227, 255),
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -1747,7 +1753,12 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color.fromARGB(71, 0, 55, 255).withOpacity(0.03),
+                    color: const Color.fromARGB(
+                      71,
+                      0,
+                      55,
+                      255,
+                    ).withOpacity(0.03),
                     blurRadius: 15,
                     offset: const Offset(0, 6),
                   ),
@@ -1802,7 +1813,12 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                           border: Border.all(
                             color: isSelected
                                 ? brandBlue
-                                : const Color.fromARGB(255, 15, 15, 15).withOpacity(0.1),
+                                : const Color.fromARGB(
+                                    255,
+                                    15,
+                                    15,
+                                    15,
+                                  ).withOpacity(0.1),
                             width: 2,
                           ),
                         ),
@@ -1813,12 +1829,15 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                               shape: BoxShape.circle,
                               image: DecorationImage(
                                 image: student["profile_picture"] != null
-                                    ? NetworkImage(student["profile_picture"])
+                                    ? CachedNetworkImageProvider(student["profile_picture"])
                                     : const AssetImage(
                                             "assets/images/icons8-avatar-100.png",
                                           )
                                           as ImageProvider,
                                 fit: BoxFit.cover,
+                                onError: (exception, stackTrace) {
+                                  // Handle silently
+                                },
                               ),
                             ),
                           ),
@@ -2059,92 +2078,92 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
       },
     );
   }
-
-  void _showQRScanner() {
-    setState(() {
-      isHasScanned = false;
-      _qrCodeScanning = true;
-    });
-    showMaterialModalBottomSheet(
-      isDismissible: true,
-      backgroundColor: Colors.transparent,
-      elevation: 20,
-      bounce: true,
-      context: context,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: myWhite,
-          borderRadius: BorderRadius.circular(28),
-        ),
-        height: 600,
-        child: Column(
-          children: [
-            SizedBox(height: 20),
-            Container(
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: softGray.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              "Scan Student QR Code",
-              style: TextStyle(
-                fontFamily: "gilroy",
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: deepNavy,
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: AiBarcodeScanner(
-                  galleryButtonAlignment: const Alignment(300, 400),
-                  fit: BoxFit.cover,
-                  overlayConfig: ScannerOverlayConfig(
-                    backgroundBlurColor: myWhite,
-                    borderColor: myColor,
-                    animationColor: myColor,
-                    lineThickness: 4,
-                    cornerLength: 100,
-                    scannerBorder: ScannerBorder.corner,
-                  ),
-                  extendBodyBehindAppBar: true,
-                  scanWindow: Rect.fromLTWH(
-                    50,
-                    50,
-                    MediaQuery.sizeOf(context).width - 100,
-                    300,
-                  ),
-                  controller: addStudentScannerController,
-                  validator: (value) {
-                    if (!isHasScanned) {
-                      AllVibrate().simpleVibrate(period: 50, amplitude: 10);
-                    }
-                    return true;
-                  },
-                  onDetect: (BarcodeCapture capture) {
-                    if (!isHasScanned) {
-                      setState(() {
-                        isHasScanned = true;
-                        _qrCodeScanning = false;
-                      });
-                      _showConfirmAddStudentDialog(
-                        context,
-                        capture.barcodes.first.rawValue!,
-                      );
-                    }
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  //
+  // void _showQRScanner() {
+  //   setState(() {
+  //     isHasScanned = false;
+  //     _qrCodeScanning = true;
+  //   });
+  //   showMaterialModalBottomSheet(
+  //     isDismissible: true,
+  //     backgroundColor: Colors.transparent,
+  //     elevation: 20,
+  //     bounce: true,
+  //     context: context,
+  //     builder: (context) => Container(
+  //       decoration: BoxDecoration(
+  //         color: myWhite,
+  //         borderRadius: BorderRadius.circular(28),
+  //       ),
+  //       height: 600,
+  //       child: Column(
+  //         children: [
+  //           SizedBox(height: 20),
+  //           Container(
+  //             width: 50,
+  //             height: 5,
+  //             decoration: BoxDecoration(
+  //               color: softGray.withOpacity(0.3),
+  //               borderRadius: BorderRadius.circular(10),
+  //             ),
+  //           ),
+  //           SizedBox(height: 16),
+  //           Text(
+  //             "Scan Student QR Code",
+  //             style: TextStyle(
+  //               fontFamily: "gilroy",
+  //               fontSize: 18,
+  //               fontWeight: FontWeight.w700,
+  //               color: deepNavy,
+  //             ),
+  //           ),
+  //           Expanded(
+  //             child: Center(
+  //               child: AiBarcodeScanner(
+  //                 galleryButtonAlignment: const Alignment(300, 400),
+  //                 fit: BoxFit.cover,
+  //                 overlayConfig: ScannerOverlayConfig(
+  //                   backgroundBlurColor: myWhite,
+  //                   borderColor: myColor,
+  //                   animationColor: myColor,
+  //                   lineThickness: 4,
+  //                   cornerLength: 100,
+  //                   scannerBorder: ScannerBorder.corner,
+  //                 ),
+  //                 extendBodyBehindAppBar: true,
+  //                 scanWindow: Rect.fromLTWH(
+  //                   50,
+  //                   50,
+  //                   MediaQuery.sizeOf(context).width - 100,
+  //                   300,
+  //                 ),
+  //                 controller: addStudentScannerController,
+  //                 validator: (value) {
+  //                   // if (!isHasScanned) {
+  //                   //   AllVibrate().simpleVibrate(period: 50, amplitude: 10);
+  //                   // }
+  //                   return true;
+  //                 },
+  //                 // onDetect: (BarcodeCapture capture) {
+  //                 //   if (!isHasScanned) {
+  //                 //     setState(() {
+  //                 //       isHasScanned = true;
+  //                 //       _qrCodeScanning = false;
+  //                 //     });
+  //                 //     _showConfirmAddStudentDialog(
+  //                 //       context,
+  //                 //       capture.barcodes.first.rawValue!,
+  //                 //     );
+  //                 //   }
+  //                 },
+  //               ),
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   void _showAddMoneySheet(BuildContext context, Map<String, dynamic> student) {
     showModalBottomSheet(
@@ -2180,7 +2199,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   fallback: "Transaction History",
                 ),
                 style: const TextStyle(
-                  color: deepNavy,
+                  color: Color.fromARGB(255, 255, 255, 255),
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                   fontFamily: "gilroy-light",
@@ -2202,15 +2221,22 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
               ? Center(
                   child: Column(
                     children: [
-                      Image.asset("assets/images/plc.png"),
+                      SizedBox(height: 50),
+
+                      SizedBox(
+                        width: 100,
+                        height: 100,
+
+                        child: Image.asset("assets/wallet.png"),
+                      ),
                       Text(
                         languageService.t(
                           'transactions.empty_title',
                           fallback: "No Transactions Yet",
                         ),
                         style: const TextStyle(
-                          color: Color.fromARGB(255, 255, 47, 0),
-                          fontFamily: "gilroy",
+                          color: Color.fromARGB(255, 255, 255, 255),
+                          fontFamily: "minigap",
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
@@ -2224,7 +2250,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                         ),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Color.fromARGB(255, 0, 17, 255),
+                          color: Color.fromARGB(172, 224, 226, 255),
                           fontFamily: "gilroy-light",
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -2393,7 +2419,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                                 : brandBlue),
                                       fontSize: 9,
                                       fontWeight: FontWeight.w900,
-                                      fontFamily: "gilroy-light"
+                                      fontFamily: "gilroy-light",
                                     ),
                                   ),
                                 ),

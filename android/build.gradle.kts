@@ -17,16 +17,6 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        if (project.hasProperty("android")) {
-            val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
-            if (android.namespace == null && project.name == "wiseasy_thermal_printer") {
-                android.namespace = "com.wiseasyflutter.wiseasy_thermal_printer"
-            }
-        }
-    }
-}
-subprojects {
     project.evaluationDependsOn(":app")
 }
 

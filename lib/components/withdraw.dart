@@ -4,7 +4,7 @@ import 'package:kaascan/dashboard/transactions.dart';
 import 'package:kaascan/dashboard/home.dart';
 import 'package:kaascan/onBoradingScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:all_vibrate/all_vibrate.dart';
+
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:kaascan/Api/client.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -34,7 +34,7 @@ class _WithdrawPageState extends State<WithdrawPage>
   String _amount = "0";
   bool isLoading = false;
   bool _pageLoading = true;
-  final vibrate = AllVibrate();
+ 
   final backendClient app = backendClient();
 
   @override
@@ -994,7 +994,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: "gilroy",
-                    color: statusMessage!.startsWith("✅")
+                    color: statusMessage!.startsWith("[*]")
                         ? Colors.green
                         : Colors.red,
                     fontWeight: FontWeight.bold,

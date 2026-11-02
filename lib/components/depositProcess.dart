@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
+import 'package:kaascan/Api/client.dart';
 import 'package:kaascan/components/deposit.dart';
 import 'package:kaascan/dashboard/home.dart';
 import 'package:kaascan/main.dart';
-import 'package:kaascan/onBoradingScreen.dart';
 import 'package:get/get.dart';
 
 
@@ -19,23 +18,27 @@ class Depositprocess extends StatelessWidget {
 
   Future<void> _checkTransactionStatus(BuildContext context) async {
     try {
-      final response = await Dio().post(
+      final response = await api_Call.post(
         'https://automation.kaascan.com/webhook/checkpaymentstatus',
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Status: ${response.data}"),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Status: ${response.data}"),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Ntibikunze, ongera ugerageze."),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ntibikunze, ongera ugerageze."),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 

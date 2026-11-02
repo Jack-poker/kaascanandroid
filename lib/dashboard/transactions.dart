@@ -1,11 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:flutter_advanced_avatar/flutter_advanced_avatar.dart';
 import 'package:kaascan/Api/client.dart';
-import 'package:kaascan/dashboard/home.dart';
+import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
+import 'package:kaascan/Auth/unified_auth.dart';
+import 'package:kaascan/main.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../services/language_service.dart';
+import 'send_money_ui.dart' show SendMoneySheet;
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -15,42 +19,80 @@ class TransactionsScreen extends StatefulWidget {
 }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
-  String _translateStatus(String status) {
-    status = status.toLowerCase();
-    if (status.contains('success') || status == 'completed')
-      return languageService.t('transactions.success', fallback: status);
-    if (status.contains('fail'))
-      return languageService.t('transactions.failed', fallback: status);
-    if (status.contains('pending') || status.contains('progress'))
-      return languageService.t('transactions.pending', fallback: status);
-    if (status == 'deposit')
-      return languageService.t('transactions.deposit', fallback: status);
-    if (status == 'withdrawal')
-      return languageService.t('transactions.withdrawal', fallback: status);
-    if (status == 'transfer')
-      return languageService.t('transactions.transfer', fallback: status);
-    return status;
+  bool _appLoading = true;
+  double _accountBalance = 0.0;
+  String _accountCurrency = "RWF";
+  List<Map<String, dynamic>> _recentTransactions = [];
+  Map<String, String> _studentPhotoUrls = {};
+
+  // Grouped data for chat-like display
+  Map<String, List<Map<String, dynamic>>> _groupedByStudent = {};
+  Map<String, double> _totalSentToStudent = {};
+  Map<String, String> _studentNames = {};
+
+  // Typewriter state for the intro system message
+  String _introText = '';
+  bool _typewriterComplete = false;
+  int _charIndex = 0;
+  int _typewriterGeneration = 0;
+
+  // Semantic colors — for transaction type/status indicators
+  static const Color greenCredit = Color(0xFF00A86B);
+  static const Color redDebit = Color(0xFFFF5A5A);
+  static const Color pendingOrange = Color(0xFFFF8C00);
+
+  // Colors for student avatars
+  static const List<Color> _avatarColors = [
+    Color(0xFF6C63FF),
+    Color(0xFF00BFA5),
+    Color(0xFFFF6B6B),
+    Color(0xFFFFA726),
+    Color(0xFF42A5F5),
+    Color(0xFFAB47BC),
+    Color(0xFF26C6DA),
+    Color(0xFF8D6E63),
+    Color(0xFFE91E63),
+    Color(0xFF00BCD4),
+  ];
+
+  /// Extract amount from a transaction, handling both `amount_sent` and `amount` keys.
+  double _txAmount(Map<String, dynamic> tx) {
+    final val = (tx['amount_sent'] ?? tx['amount'] ?? 0);
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
   }
 
-  bool _appLoading = true;
-  double accountBalance = 0.0;
-  String accountCurrency = "RWF";
-  String userPhone = "";
-  List<Map<String, dynamic>> recentTransactions = [];
-  List<dynamic> listStudent = [];
-  int _selectedTab = 0; // 0 for History, 1 for Requested full history
+  /// Extract status from a transaction.
+  String _txStatus(Map<String, dynamic> tx) {
+    final s = (tx['transaction_status'] ?? tx['status'] ?? 'pending');
+    return s.toString().toLowerCase();
+  }
 
-  // Premium color palette: Pure and Precise
-  static const Color deepNavy = Color(0xFF11142D);
-  static const Color brandBlue = Color(0xFF0038FF);
-  static const Color brandOrange = Color(0xFFFF5A00);
-  static const Color electricBlue = Color(0xFF0038FF);
-  static const Color softGray = Color(0xFF808191);
-  static const Color cloudWhite = Color(0xFFFFFFFF); // Pure White
-  static const Color cardWhite = Color(0xFFFFFFFF);  // Pure White
-  static const Color successGreen = Color(0xFF065F46); // Beautiful Dark Emerald Green
-  static const Color warningYellow = Color(0xFFFF5A00);
-  static const Color lightBlue = Color(0xFFF4F7FF);
+  /// Extract a display label for student from a transaction.
+  String _getStudentId(Map<String, dynamic> tx) {
+    return tx['student_id']?.toString() ?? 'unknown';
+  }
+
+  String _getStudentName(Map<String, dynamic> tx) {
+    return tx['student_name']?.toString() ?? 'Student';
+  }
+
+  String _getDescription(Map<String, dynamic> tx) {
+    return tx['description']?.toString() ?? 'Transaction';
+  }
+
+  /// Generate consistent initials for a name.
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.split(' ').where((w) => w.isNotEmpty).take(2).toList();
+    return parts.map((w) => w[0].toUpperCase()).join();
+  }
+
+  /// Generate a consistent color from a student ID.
+  Color _getColorForStudent(String studentId) {
+    return _avatarColors[studentId.hashCode.abs() % _avatarColors.length];
+  }
 
   Future<String?> _accountToken() async {
     final tempStorage = await SharedPreferences.getInstance();
@@ -64,31 +106,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       return;
     }
 
-    // Initialize with defaults
     double tempBalance = 0.0;
     String tempCurrency = "RWF";
-    String tempUserPhone = "";
     List<Map<String, dynamic>> tempTransactions = [];
-    List<dynamic> tempStudents = [];
+    List<Map<String, dynamic>> tempStudents = [];
 
     final app = backendClient();
 
     try {
-      // 1. Profile
-      try {
-        final accountData = await app.Profile(accountToken);
-        if (accountData.data != null && accountData.data["profile"] != null) {
-          tempUserPhone =
-              accountData.data["profile"]["phone_number"]?.toString() ?? "";
-          if (tempUserPhone.startsWith('0')) {
-            tempUserPhone = tempUserPhone.substring(1);
-          }
-        }
-      } catch (e) {
-        print("Profile Fetch Error: $e");
-      }
-
-      // 2. Balance
       try {
         final balance = await app.walletBalance(accountToken);
         if (balance.data != null) {
@@ -96,262 +121,164 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           tempCurrency = balance.data["currency"] ?? "RWF";
         }
       } catch (e) {
-        print("Balance Fetch Error: $e");
+        debugPrint("Balance Fetch Error: $e");
       }
 
-      // 3. Transactions
+      try {
+        final students = await app.studentsLinked(accountToken);
+        if (students.data != null) {
+          tempStudents = List<Map<String, dynamic>>.from(
+            students.data["students"] ?? [],
+          );
+        }
+      } catch (e) {
+        debugPrint("Students Fetch Error: $e");
+      }
+
       try {
         final transactions = await app.walletTransactions(accountToken);
-        print("Transactions API Response: ${transactions.data}"); // Debug log
         if (transactions.data != null &&
             transactions.data['transactions'] != null) {
           final List<dynamic> rawTx = transactions.data['transactions'];
           tempTransactions = rawTx
               .map((item) => Map<String, dynamic>.from(item))
+              .where((tx) {
+                final amount = _txAmount(tx);
+                return amount != 0;
+              })
               .toList();
         }
       } catch (e) {
-        print("Transactions Fetch/Parse Error: $e");
-      }
-
-      // 4. Students
-      try {
-        final students = await app.studentsLinked(accountToken);
-        if (students.data != null) {
-          tempStudents = students.data["students"] ?? [];
-        }
-      } catch (e) {
-        print("Students Fetch Error: $e");
+        debugPrint("Transactions Fetch/Parse Error: $e");
       }
 
       if (!mounted) return;
 
+      // Group transactions by student and calculate totals
+      final grouped = <String, List<Map<String, dynamic>>>{};
+      final totals = <String, double>{};
+      final names = <String, String>{};
+      final photoUrls = <String, String>{};
+
+      for (final tx in tempTransactions) {
+        final studentId = _getStudentId(tx);
+        final amount = _txAmount(tx);
+        grouped.putIfAbsent(studentId, () => []);
+        grouped[studentId]!.add(tx);
+        totals[studentId] =
+            (totals[studentId] ?? 0.0) + (amount < 0 ? amount.abs() : 0);
+
+        // Try to get student name & photo from transaction or linked students
+        String name = _getStudentName(tx);
+        String photoUrl = tx['photo_url']?.toString() ?? '';
+        if ((name == 'Student' || photoUrl.isEmpty) &&
+            tempStudents.isNotEmpty) {
+          final match = tempStudents.cast<Map<String, dynamic>>().where(
+            (s) => s['student_id']?.toString() == studentId,
+          );
+          if (match.isNotEmpty) {
+            if (name == 'Student') {
+              name = match.first['student_name']?.toString() ?? 'Student';
+            }
+            if (photoUrl.isEmpty) {
+              photoUrl =
+                  match.first['profile_picture']?.toString() ??
+                  match.first['photo_url']?.toString() ??
+                  '';
+            }
+          }
+        }
+        names[studentId] = name;
+        if (photoUrl.isNotEmpty) {
+          photoUrls[studentId] = photoUrl;
+        }
+      }
+
       setState(() {
-        accountBalance = tempBalance;
-        accountCurrency = tempCurrency;
-        userPhone = tempUserPhone;
-        recentTransactions = tempTransactions;
-        listStudent = tempStudents;
+        _accountBalance = tempBalance;
+        _accountCurrency = tempCurrency;
+        _recentTransactions = tempTransactions;
+        _studentPhotoUrls = photoUrls;
+        _groupedByStudent = grouped;
+        _totalSentToStudent = totals;
+        _studentNames = names;
         _appLoading = false;
       });
+
+      // Start typewriter animation after state is set
+      _startTypewriter();
     } catch (e) {
-      print("Critical Error in _initProfile: $e");
-      if (mounted) {
-        setState(() => _appLoading = false);
-      }
+      debugPrint("Critical Error in _initProfile: $e");
+      if (mounted) setState(() => _appLoading = false);
     }
   }
 
-  String _formatDateTime(String timestamp) {
+  void _startTypewriter() {
+    _typewriterGeneration++;
+    final myGeneration = _typewriterGeneration;
+
+    _charIndex = 0;
+    _typewriterComplete = false;
+    _introText = '';
+
+    // Build the intro message
+    final totalSent = _totalSentToStudent.values.fold(0.0, (a, b) => a + b);
+
+    final introMsg = languageService.t(
+      'transactions.chat_intro',
+      fallback:
+          'Amafaranga ari kuri konti yawe: ${_formatCurrency(_accountBalance)} $_accountCurrency\n'
+          '\n'
+          ' Mwagiye mwohereza abanyeshuri banyu amafaranga agera kuri ${_formatCurrency(totalSent)} $_accountCurrency mu byagarutsweho.\n'
+          '\n'
+          'Hasi hari abanyeshuri banyu hamwe nayo mwagiye muboherereza:',
+    );
+
+    const typeSpeed = Duration(milliseconds: 10);
+
+    Future.doWhile(() async {
+      await Future.delayed(typeSpeed);
+      if (!mounted) return false;
+
+      // If a new typewriter was started, discard this stale generation
+      if (_typewriterGeneration != myGeneration) return false;
+
+      _charIndex++;
+      setState(() {
+        if (_typewriterGeneration != myGeneration) return;
+        _introText = introMsg.substring(
+          0,
+          math.min(_charIndex, introMsg.length),
+        );
+      });
+
+      if (_charIndex >= introMsg.length) {
+        if (_typewriterGeneration == myGeneration) {
+          _typewriterComplete = true;
+          setState(() {});
+        }
+        return false;
+      }
+      return true;
+    });
+  }
+
+  String _formatShortTime(String timestamp) {
     try {
       final dateTime = DateTime.parse(timestamp);
       final now = DateTime.now();
-      final difference = now.difference(dateTime);
-
-      if (difference.inDays == 0) {
-        return DateFormat('HH:mm').format(dateTime);
-      } else if (difference.inDays == 1) {
-        return '${languageService.t('transactions.yesterday', fallback: 'Yesterday')} ${DateFormat('HH:mm').format(dateTime)}';
-      } else {
-        return DateFormat('MMM dd, HH:mm').format(dateTime);
-      }
-    } catch (e) {
+      final diff = now.difference(dateTime);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return DateFormat('MMM d').format(dateTime);
+    } catch (_) {
       return timestamp;
     }
   }
 
-  Color _getAvatarColor(String type) {
-    return type == 'deposit' ? electricBlue : successGreen;
-  }
-
-  IconData _getTransactionIcon(String type) {
-    return type == 'deposit' ? Icons.arrow_downward : Icons.arrow_upward;
-  }
-
-  void _showTransactionDetails(
-    BuildContext context,
-    Map<String, dynamic> transaction,
-  ) {
-    showModalBottomSheet(
-      isScrollControlled: true,
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: cardWhite,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: softGray.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              SizedBox(height: 24),
-              // Header
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      languageService.t(
-                        'transactions.transaction_details',
-                        fallback: "Transaction Details",
-                      ),
-                      style: const TextStyle(
-                        fontFamily: "gilroy",
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Color.fromARGB(255, 0, 26, 255),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: softGray),
-                      style: IconButton.styleFrom(backgroundColor: cloudWhite),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 24),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      _buildDetailCard(
-                        languageService.t(
-                          'transactions.amount',
-                          fallback: "Amount",
-                        ),
-                        "${transaction['amount'] ?? '0'} ${transaction['currency'] ?? 'RWF'}",
-                        Icons.attach_money,
-                      ),
-                      _buildDetailCard(
-                        languageService.t(
-                          'transactions.type',
-                          fallback: "Type",
-                        ),
-                        _translateStatus(transaction['type']?.toString() ?? 'N/A'),
-                        Icons.category,
-                      ),
-                      _buildDetailCard(
-                        languageService.t(
-                          'transactions.status',
-                          fallback: "Status",
-                        ),
-                        _translateStatus(transaction['status']?.toString() ?? 'N/A'),
-                        Icons.info_outline,
-                      ),
-                      _buildDetailCard(
-                        languageService.t(
-                          'transactions.reference',
-                          fallback: "Transaction ID",
-                        ),
-                        transaction['transaction_id']?.toString() ?? 'N/A',
-                        Icons.tag,
-                      ),
-                      _buildDetailCard(
-                        languageService.t(
-                          'transactions.description',
-                          fallback: "Description",
-                        ),
-                        transaction['description']?.toString() ?? 'N/A',
-                        Icons.description,
-                      ),
-                      _buildDetailCard(
-                        languageService.t(
-                          'transactions.time',
-                          fallback: "Timestamp",
-                        ),
-                        transaction['timestamp']?.toString() ?? 'N/A',
-                        Icons.access_time,
-                      ),
-                      if (transaction['student_name'] != null)
-                        _buildDetailCard(
-                          languageService.t(
-                            'students.beneficiary',
-                            fallback: "Student",
-                          ),
-                          transaction['student_name'],
-                          Icons.person,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDetailCard(String label, String value, IconData icon) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cloudWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: softGray.withOpacity(0.1)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: lightBlue,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: electricBlue, size: 20),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 12,
-                    color: softGray,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 15,
-                    color: deepNavy,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  String _formatCurrency(double amount) {
+    return NumberFormat('#,###').format(amount.abs());
   }
 
   @override
@@ -363,26 +290,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 195, 228, 255),
+      backgroundColor: myColor,
       body: SafeArea(
         child: Column(
           children: [
-            // Navigation bar
-            _buildNavigationBar(),
-            // Tabs
-            _buildTabBar(),
-            // Transaction list
+            _buildHeader(),
             Expanded(
               child: _appLoading
-                  ? Center(
-                      child: LoadingAnimationWidget.discreteCircle(
-                        color: electricBlue,
-                        size: 50,
-                      ),
-                    )
-                  : recentTransactions.isEmpty
+                  ? _buildLoadingState()
+                  : _recentTransactions.isEmpty
                   ? _buildEmptyState()
-                  : _buildTransactionList(),
+                  : _buildChatTransactionList(),
             ),
           ],
         ),
@@ -390,135 +308,85 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildNavigationBar() {
+  Widget _buildHeader() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 195, 228, 255),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
+        color: myColor,
+        // boxShadow: [
+        //   BoxShadow(
+        //     color: Colors.black.withOpacity(0.1),
+        //     blurRadius: 8,
+        //     offset: const Offset(0, 4),
+        //   ),
+        // ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => DashboardNav()),
-            ),
-            icon: Icon(Icons.arrow_back_ios, color: const Color.fromARGB(255, 0, 26, 255), size: 20),
-            style: IconButton.styleFrom(
-              backgroundColor: cloudWhite,
-              padding: EdgeInsets.all(8),
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                languageService.t(
+                  'transactions.title',
+                  fallback: 'Transactions',
+                ),
+                style: const TextStyle(
+                  fontFamily: 'minigap',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_recentTransactions.length} transactions',
+                style: TextStyle(
+                  fontFamily: 'minigap',
+                  fontSize: 13,
+                  color: Colors.white.withOpacity(0.7),
+                ),
+              ),
+            ],
           ),
-          Text(
-            languageService.t('transactions.title', fallback: "Your Payment"),
-            style: const TextStyle(
-              fontFamily: "gilroy-light",
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Color.fromARGB(255, 0, 42, 255),
-            ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.filter_list, color: const Color.fromARGB(255, 0, 26, 255), size: 20),
-            style: IconButton.styleFrom(
-              backgroundColor: cloudWhite,
-              padding: EdgeInsets.all(8),
-            ),
-          ),
+          // Wallet balance chip
+          // Container(
+          //   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          //   decoration: BoxDecoration(
+          //     color: Colors.white.withOpacity(0.15),
+          //     borderRadius: BorderRadius.circular(20),
+          //     border: Border.all(color: Colors.white.withOpacity(0.2)),
+          //   ),
+          //   child: Row(
+          //     mainAxisSize: MainAxisSize.min,
+          //     children: [
+          //       Icon(
+          //         Icons.account_balance_wallet_rounded,
+          //         size: 16,
+          //         color: Colors.white,
+          //       ),
+          //       const SizedBox(width: 6),
+          //       Text(
+          //         '${_formatCurrency(_accountBalance)} $_accountCurrency',
+          //         style: const TextStyle(
+          //           fontFamily: 'minigap',
+          //           fontSize: 14,
+          //           fontWeight: FontWeight.w700,
+          //           color: Colors.white,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
         ],
       ),
     );
   }
 
-  Widget _buildTabBar() {
-    return Container(
-      padding: EdgeInsets.all(20),
-      color: cardWhite,
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                _buildTab(
-                  languageService.t('home.history', fallback: "History"),
-                  0,
-                ),
-                const SizedBox(width: 12),
-                _buildTab(
-                  languageService.t(
-                    'transactions.all_transactions',
-                    fallback: "Full History",
-                  ),
-                  1,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: 12),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: lightBlue,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.download, color: electricBlue, size: 16),
-                SizedBox(width: 6),
-                Text(
-                  languageService.t(
-                    'transactions.download',
-                    fallback: "Download",
-                  ),
-                  style: const TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: electricBlue,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String label, int index) {
-    final isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color.fromARGB(255, 0, 42, 254) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color.fromARGB(0, 255, 42, 0) : softGray.withOpacity(0.3),
-            width: 1.5,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: "gilroy-light",
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? cardWhite : softGray,
-          ),
-        ),
-      ),
+  Widget _buildLoadingState() {
+    return Center(
+      child: LoadingAnimationWidget.discreteCircle(color: myWhite, size: 40),
     );
   }
 
@@ -528,37 +396,41 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(color: lightBlue, shape: BoxShape.circle),
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
             child: Icon(
-              Icons.receipt_long_outlined,
-              size: 64,
-              color: electricBlue,
+              Icons.chat_bubble_outline_rounded,
+              size: 40,
+              color: Colors.white.withOpacity(0.5),
             ),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             languageService.t(
               'transactions.no_transactions',
-              fallback: "No Transactions Yet",
+              fallback: 'No transactions yet',
             ),
             style: const TextStyle(
-              fontFamily: "gilroy-light",
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: deepNavy,
+              fontFamily: 'minigap',
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             languageService.t(
               'transactions.no_history_message',
-              fallback: "Your transaction history will appear here",
+              fallback: 'Your transactions will appear here',
             ),
-            style: const TextStyle(
-              fontFamily: "gilroy-light",
+            style: TextStyle(
+              fontFamily: 'minigap-light',
               fontSize: 14,
-              color: softGray,
+              color: Colors.white.withOpacity(0.6),
             ),
           ),
         ],
@@ -566,250 +438,773 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildTransactionList() {
-    return ListView.builder(
-      padding: EdgeInsets.all(20),
-      itemCount: recentTransactions.length,
-      itemBuilder: (context, index) {
-        final transaction = recentTransactions[index];
-        return _buildTransactionCard(transaction);
-      },
+  Widget _buildChatTransactionList() {
+    return RefreshIndicator(
+      onRefresh: _initProfile,
+      color: myBlue,
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        children: [
+          // --- SYSTEM MESSAGE: Parent Balance Summary (chat bubble) ---
+          _buildSystemBubble(),
+
+          // --- PER-STUDENT CHAT BUBBLES ---
+          ..._groupedByStudent.entries.map((entry) {
+            return _buildStudentBubble(entry.key, entry.value);
+          }),
+
+          // Bottom padding
+          const SizedBox(height: 20),
+
+          // Footer text
+          Center(
+            child: Text(
+              'You\'re all caught up ✓',
+              style: TextStyle(
+                fontFamily: 'minigap-light',
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.4),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTransactionCard(Map<String, dynamic> transaction) {
-    final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
-    final isNegative = amount < 0;
-    final status = transaction['status']?.toString().toLowerCase() ?? 'pending';
-
-    Color statusColor;
-    IconData statusIcon;
-
-    switch (status) {
-      case 'success':
-      case 'completed':
-      case 'successful':
-        statusColor = const Color.fromARGB(255, 1, 160, 30);
-        statusIcon = isNegative ? Icons.arrow_outward_rounded : Icons.arrow_downward_rounded;
-        break;
-      case 'failed':
-        statusColor = const Color.fromARGB(255, 244, 41, 41);
-        statusIcon = Icons.close_rounded;
-        break;
-      case 'pending':
-      case 'in progress':
-      case 'processing':
-        statusColor = const Color.fromARGB(255, 255, 34, 0);
-        statusIcon = Icons.sync_rounded;
-        break;
-      default:
-        statusColor = softGray;
-        statusIcon = Icons.help_outline_rounded;
-    }
-
-    Color cardBg;
-    Color iconBg;
-    Color iconColor;
-
-    switch (status) {
-      case 'success':
-      case 'completed':
-      case 'successful':
-        cardBg = isNegative ? const Color.fromARGB(255, 0, 0, 255) : const Color.fromARGB(255, 167, 248, 174);
-        iconBg = isNegative ? brandOrange : const Color(0xFF2E7D32);
-        iconColor = isNegative ? Colors.white : const Color(0xFF69F0AE);
-        break;
-      case 'failed':
-        cardBg = const Color.fromARGB(255, 255, 178, 189);
-        iconBg = const Color.fromARGB(255, 255, 43, 39);
-        iconColor = Colors.white;
-        break;
-      case 'pending':
-        cardBg = const Color.fromARGB(255, 251, 224, 181);
-        iconBg = brandOrange;
-        iconColor = Colors.white;
-        break;
-      default:
-        cardBg = Colors.white;
-        iconBg = electricBlue;
-        iconColor = Colors.white;
-    }
-
-    return GestureDetector(
-      onTap: () => _showTransactionDetails(context, transaction),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: iconBg.withOpacity(0.05),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
+  /// System chat bubble showing the parent balance summary.
+  Widget _buildSystemBubble() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 48, top: 8, bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // System avatar
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [myColor, const Color(0xFF6B8CFF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: myColor.withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset("assets/logo.jpg", fit: BoxFit.cover),
+              ),
             ),
-          ],
-          border: Border.all(
-            color: iconBg.withOpacity(0.1),
-            width: 1.2,
+          ),
+          const SizedBox(width: 8),
+          // Bubble content
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sender name
+                  Text(
+                    'Kaascan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: "minigap",
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Typewriter text or completed text
+                  _typewriterComplete
+                      ? _buildIntroRichText()
+                      : _buildIntroTypewriterText(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntroRichText() {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontFamily: 'minigap',
+          height: 1.5,
+        ),
+        children: _parseIntroText(_introText),
+      ),
+    );
+  }
+
+  Widget _buildIntroTypewriterText() {
+    return Text(
+      _introText,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontFamily: 'minigap',
+        height: 1.5,
+      ),
+    );
+  }
+
+  /// Parse the intro text to make amounts and numbers highlighted.
+  List<TextSpan> _parseIntroText(String text) {
+    final spans = <TextSpan>[];
+    final amountRegex = RegExp(r'[\d,]+ RWF');
+    int lastEnd = 0;
+
+    for (final match in amountRegex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(match.start, match.end),
+          style: const TextStyle(
+            color: Color(0xFFB5E61D), // Lime green highlight
+            fontWeight: FontWeight.w700,
           ),
         ),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Premium Leader with Multi-radius
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    topRight: Radius.circular(18),
-                    bottomLeft: Radius.circular(18),
-                    bottomRight: Radius.circular(8),
+      );
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    return spans;
+  }
+
+  /// Opens the Send Money bottom sheet for the given student.
+  void _showSendMoneySheet(String studentId) {
+    final name = _studentNames[studentId] ?? 'Student';
+    final student = <String, dynamic>{
+      'student_id': studentId,
+      'student_name': name,
+      'photo_url': _studentPhotoUrls[studentId] ?? '',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SendMoneySheet(
+        student: student,
+        parentBalance: _accountBalance,
+        parentName: languageService.t('common.parent', fallback: 'Parent'),
+        onTransferSuccess: () {
+          _initProfile();
+        },
+      ),
+    );
+  }
+
+  /// Shows a detail bottom sheet for a single transaction.
+  void _showTransactionDetail(Map<String, dynamic> tx) {
+    final amount = _txAmount(tx).abs();
+    final isIncoming = _txAmount(tx) > 0;
+    final status = _txStatus(tx);
+    final description = tx['description']?.toString() ?? 'Transaction';
+    final timestamp =
+        tx['timestamp']?.toString() ?? tx['created_at']?.toString() ?? '';
+    final fee = (tx['fee'] as num?)?.toDouble() ?? 0.0;
+    final transactionId = tx['transaction_id']?.toString() ?? '-';
+    final merchantName =
+        tx['merchant_name']?.toString() ?? tx['description']?.toString() ?? '-';
+    final studentId = tx['student_id']?.toString() ?? '';
+    final studentName = _studentNames[studentId] ?? '-';
+
+    final statusColor =
+        status == 'success' || status == 'completed' || status == 'successful'
+        ? greenCredit
+        : status == 'failed'
+        ? redDebit
+        : pendingOrange;
+    final statusLabel = status == 'successful'
+        ? 'Successful'
+        : status == 'success'
+        ? 'Successful'
+        : status == 'completed'
+        ? 'Completed'
+        : status == 'pending'
+        ? 'Pending'
+        : status == 'failed'
+        ? 'Failed'
+        : status.toUpperCase();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.65,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Amount circle
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isIncoming
+                    ? greenCredit.withOpacity(0.1)
+                    : redDebit.withOpacity(0.1),
+              ),
+              child: Center(
+                child: Text(
+                  '${isIncoming ? '+' : '-'}${_formatCurrency(amount)}',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'gilroy',
+                    color: isIncoming ? greenCredit : redDebit,
                   ),
                 ),
-                child: Icon(
-                  statusIcon,
-                  color: iconColor,
-                  size: 20,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Description
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                description,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontFamily: 'gilroy',
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1C1C1E),
                 ),
               ),
-              const SizedBox(width: 16),
-              // Transaction Details
-              Expanded(
+            ),
+            const SizedBox(height: 4),
+            // Status pill
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'gilroy',
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Detail rows
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _detailRow('Student', studentName, Icons.person_rounded),
+                    if (description != 'Transaction')
+                      _detailRow('Merchant', merchantName, Icons.store_rounded),
+                    _detailRow(
+                      'Type',
+                      isIncoming ? 'Deposit' : 'Payment',
+                      Icons.category_rounded,
+                    ),
+                    _detailRow(
+                      'Date',
+                      _formatReadableDate(timestamp),
+                      Icons.calendar_month_rounded,
+                    ),
+                    _detailRow('Status', statusLabel, Icons.info_rounded),
+                    if (fee > 0)
+                      _detailRow(
+                        'Fee',
+                        '${_formatCurrency(fee)} RWF',
+                        Icons.money_rounded,
+                      ),
+                    _detailRow(
+                      'Transaction ID',
+                      transactionId,
+                      Icons.receipt_rounded,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: myColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: myColor.withOpacity(0.7)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontFamily: 'gilroy',
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontFamily: 'gilroy',
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1C1C1E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatReadableDate(String timestamp) {
+    try {
+      final dt = DateTime.parse(timestamp);
+      return DateFormat('MMM d, yyyy  HH:mm').format(dt);
+    } catch (_) {
+      return timestamp;
+    }
+  }
+
+  /// Per-student chat bubble with avatar, name, total sent, and transaction list.
+  Widget _buildStudentBubble(
+    String studentId,
+    List<Map<String, dynamic>> transactions,
+  ) {
+    final name = _studentNames[studentId] ?? 'Student';
+    final totalSent = _totalSentToStudent[studentId] ?? 0.0;
+    final accentColor = _getColorForStudent(studentId);
+    final initials = _getInitials(name);
+    final photoUrl = _studentPhotoUrls[studentId] ?? '';
+    final hasPhoto = photoUrl.isNotEmpty;
+
+    final sortedTxs = List<Map<String, dynamic>>.from(transactions)
+      ..sort((a, b) {
+        final tA = a['timestamp'] ?? a['created_at'] ?? '';
+        final tB = b['timestamp'] ?? b['created_at'] ?? '';
+        return tB.toString().compareTo(tA.toString());
+      });
+    final txCount = sortedTxs.length;
+
+    // Separate incoming (positive) and outgoing (negative)
+    final incoming = sortedTxs.where((tx) => _txAmount(tx) > 0).toList();
+    final outgoing = sortedTxs.where((tx) => _txAmount(tx) < 0).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 48, top: 6, bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Student avatar (photo or initials)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: hasPhoto
+                    ? null
+                    : LinearGradient(
+                        colors: [accentColor, accentColor.withOpacity(0.7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: accentColor.withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: hasPhoto
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: CachedNetworkImageWrapper(
+                        imageUrl: photoUrl,
+                        width: 36,
+                        height: 36,
+                        fit: BoxFit.cover,
+                        errorWidget: Center(
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'minigap',
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'minigap',
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Bubble content
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+                border: Border.all(color: accentColor.withOpacity(0.15)),
+              ),
+              child: GestureDetector(
+                onTap: () => _showSendMoneySheet(studentId),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      transaction['description'] ?? (isNegative ? "PaymentSent" : "FundsReceived"),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: "gilroy-light",
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color.fromARGB(255, 255, 255, 255),
-                        letterSpacing: -0.3,
-                      ),
+                    // Student header row
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'minigap',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: lightBlue,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 2),
+                    // Total sent to this student
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.trending_up_rounded,
+                          size: 14,
+                          color: Colors.white.withOpacity(0.6),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Total sent: ${_formatCurrency(totalSent)} $_accountCurrency',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 12,
+                            fontFamily: 'minigap',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Transaction count
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_rounded,
+                          size: 14,
+                          color: Colors.white.withOpacity(0.4),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$txCount transaction${txCount == 1 ? '' : 's'}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.4),
+                            fontSize: 11,
+                            fontFamily: 'minigap-light',
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // --- Transaction list within the bubble ---
+                    // Incoming (deposits)
+                    if (incoming.isNotEmpty) ...[
+                      // Section label
+                      Row(
                         children: [
-                          Icon(Icons.access_time_filled_rounded, 
-                               size: 10, color: const Color.fromARGB(255, 21, 0, 255)),
-                          const SizedBox(width: 4),
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Color.fromARGB(255, 255, 255, 255),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
                           Text(
-                            _formatDateTime(transaction['timestamp'] ?? ''),
+                            'Ayashyizwe kuri konti',
                             style: TextStyle(
-                              color: const Color.fromARGB(255, 0, 8, 255).withOpacity(0.6),
-                              fontFamily: "gilroy",
+                              color: const Color.fromARGB(
+                                255,
+                                255,
+                                255,
+                                255,
+                              ).withOpacity(0.8),
                               fontSize: 11,
+                              fontFamily: 'minigap',
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      ...incoming.map(
+                        (tx) => _buildTxRow(tx, isIncoming: true),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Outgoing (payments/withdrawals)
+                    if (outgoing.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'ayakoreshejwe n`abanyeshuri',
+                            style: TextStyle(
+                              color: accentColor.withOpacity(0.8),
+                              fontSize: 11,
+                              fontFamily: 'minigap',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ...outgoing.map(
+                        (tx) => _buildTxRow(tx, isIncoming: false),
+                      ),
+                    ],
+
+                    // Timestamp at bottom of bubble
+                    if (sortedTxs.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            _formatShortTime(
+                              sortedTxs.first['timestamp'] ??
+                                  sortedTxs.first['created_at'] ??
+                                  '',
+                            ),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.3),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-              // Amount Area
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    "${isNegative ? '-' : '+'} ${NumberFormat('#,###').format(amount.abs())}",
-                    style: TextStyle(
-                      fontFamily: "gilroy",
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: isNegative ? const Color.fromARGB(255, 255, 255, 255) : const Color.fromARGB(255, 0, 30, 255),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  Text(
-                    accountCurrency,
-                    style: TextStyle(
-                      fontFamily: "gilroy",
-                      fontSize: 10,
-                      color: softGray,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _buildStatusBadge(status),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-    String labelKey;
-    String fallback;
+  /// A single transaction row inside the student bubble.
+  Widget _buildTxRow(Map<String, dynamic> tx, {required bool isIncoming}) {
+    final amount = _txAmount(tx).abs();
+    final description = _getDescription(tx);
+    final timestamp = _formatShortTime(
+      tx['timestamp'] ?? tx['created_at'] ?? '',
+    );
+    final status = _txStatus(tx);
+    final isSuccessful =
+        status == 'success' || status == 'completed' || status == 'successful';
 
-    switch (status.toLowerCase()) {
-      case 'completed':
-      case 'success':
-      case 'successful':
-        bgColor = const Color.fromARGB(255, 2, 132, 0);
-        textColor = const Color.fromARGB(255, 24, 255, 43);
-        labelKey = 'transactions.success';
-        fallback = 'Completed';
-        break;
-      case 'pending':
-      case 'in progress':
-      case 'processing':
-        bgColor = warningYellow.withOpacity(0.1);
-        textColor = warningYellow;
-        labelKey = 'transactions.pending';
-        fallback = 'Pending';
-        break;
-      case 'failed':
-        bgColor = Colors.redAccent.withOpacity(0.1);
-        textColor = Colors.redAccent;
-        labelKey = 'transactions.failed';
-        fallback = 'Failed';
-        break;
-      default:
-        bgColor = softGray.withOpacity(0.1);
-        textColor = softGray;
-        labelKey = '';
-        fallback = status.toUpperCase();
-    }
+    final amountColor = isIncoming
+        ? const Color.fromARGB(255, 221, 255, 242)
+        : const Color.fromARGB(255, 206, 255, 203);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: textColor.withOpacity(0.1), width: 0.5),
-      ),
-      child: Text(
-        labelKey.isEmpty 
-            ? fallback 
-            : languageService.t(labelKey, fallback: fallback),
-        style: TextStyle(
-          fontFamily: "gilroy",
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-          letterSpacing: 0.2,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: InkWell(
+          onTap: () => _showTransactionDetail(tx),
+          borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              // Status dot
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: isSuccessful
+                      ? const Color.fromARGB(255, 219, 255, 242)
+                      : (status == 'failed' ? redDebit : pendingOrange),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Description + time
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 12,
+                        fontFamily: 'minigap',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      timestamp,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.35),
+                        fontSize: 10,
+                        fontFamily: 'minigap-light',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Amount
+              Text(
+                '${isIncoming ? '+' : '-'}${_formatCurrency(amount)} RWF',
+                style: TextStyle(
+                  color: amountColor,
+                  fontSize: 13,
+                  fontFamily: 'gilroy',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

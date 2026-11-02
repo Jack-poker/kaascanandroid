@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class FavoriteStudentsWidget extends StatelessWidget {
   final List<Map<String, dynamic>> students;
@@ -171,8 +172,11 @@ class FavoriteStudentsWidget extends StatelessWidget {
                     border: Border.all(color: pastelBorder, width: 2),
                     image: profilePicture != null
                         ? DecorationImage(
-                            image: NetworkImage(profilePicture),
+                            image: CachedNetworkImageProvider(profilePicture),
                             fit: BoxFit.cover,
+                            onError: (exception, stackTrace) {
+                              // Swallow loading errors to avoid red screen/crashes
+                            },
                           )
                         : null,
                     color: profilePicture == null ? lightBlue : null,

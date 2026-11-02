@@ -1,0 +1,192 @@
+{
+  "id": "019f2735-7073-72bc-bf83-840b5ac83c5e",
+  "name": "Image caching & optimization",
+  "description": "Replace all raw `Image.network()` calls with a proper caching layer using `cached_network_image` + a dedicated image cache service, with error handling that never shows exceptions to users.",
+  "status": "paused",
+  "worktree": {
+    "path": "/home/quantumbytes/Documents/Q_PROJECTS/kaascan",
+    "branch": "main",
+    "commit": "5459bceef4bdefa8e0c5a9ace0a894827da5a744"
+  },
+  "scoping": {
+    "goal": {
+      "answer": "Replace all raw `Image.network()` calls with a proper caching layer using `cached_network_image` + a dedicated image cache service, with error handling that never shows exceptions to users.",
+      "confirmedAt": "2026-07-03T09:47:05.686Z"
+    },
+    "criteria": {
+      "answer": "All Image.network() calls replaced with CachedNetworkImageWrapper\nNo error messages or exceptions visible to end users\nPreloaded images show immediately without network delay\nApp compiles and runs without regressions",
+      "confirmedAt": "2026-07-03T09:47:05.686Z"
+    },
+    "constraints": {
+      "answer": "Must not break any existing functionality, Must use existing cached_network_image dependency (already in pubspec), Must handle all error states gracefully (network failure, invalid URL, empty URL)",
+      "confirmedAt": "2026-07-03T09:47:05.686Z"
+    },
+    "phases": {
+      "answer": "Phase 1: Install & create cache service, Phase 2: Replace all Image.network() calls, Phase 3: Preload & optimize",
+      "confirmedAt": "2026-07-03T09:47:05.686Z"
+    },
+    "assumptions": {
+      "answer": "cached_network_image is already in pubspec.yaml so just needs import; All image URLs are remote HTTPS URLs; The app already has a provider-based state management pattern",
+      "confirmedAt": "2026-07-03T09:47:05.686Z"
+    }
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "index": 1,
+      "name": "Phase 1: Install & create cache service",
+      "goal": "Add dependency, create ImageCacheService, and set up a global image cache provider",
+      "description": "Install cached_network_image package, create a dedicated ImageCacheService class, and build a provider-level image cache that all network images will use.",
+      "parallel": false,
+      "status": "active",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Add cached_network_image to pubspec.yaml and run flutter pub get",
+          "status": "pending",
+          "parallel": false,
+          "startedAt": "2026-07-03T09:47:27.497Z"
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Create lib/services/image_cache_service.dart - a dedicated cache service with preload, memory/disk tiers, and error swallowing",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Create lib/widgets/cached_network_image_wrapper.dart - a drop-in replacement widget that wraps CachedNetworkImage with errorBuilder that silently falls back to a placeholder icon, never showing exceptions to users",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-4",
+          "index": 4,
+          "description": "Register the image cache service as a provider in the app's provider setup",
+          "status": "pending",
+          "parallel": false
+        }
+      ],
+      "startedAt": "2026-07-03T09:47:14.173Z"
+    },
+    {
+      "id": "phase-2",
+      "index": 2,
+      "name": "Phase 2: Replace all Image.network() calls",
+      "goal": "Replace every raw Image.network() call across the codebase with the cached wrapper",
+      "description": "Find every occurrence of Image.network() in the lib directory and replace it with the new CachedNetworkImageWrapper, ensuring users never see broken-image errors or loading failures.",
+      "parallel": false,
+      "status": "planned",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Find and replace Image.network() calls in screens/kaascan_ai.dart - the main AI screen",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Find and replace Image.network() calls in components/chat_bubble.dart - the chat bubble component",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Find and replace Image.network() calls in components/addStudent.dart",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-4",
+          "index": 4,
+          "description": "Find and replace Image.network() calls in components/typing_indicator.dart",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-5",
+          "index": 5,
+          "description": "Find and replace Image.network() calls in dashboard/students.dart",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-6",
+          "index": 6,
+          "description": "Find and replace Image.network() calls in dashboard/home.dart",
+          "status": "pending",
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "index": 3,
+      "name": "Phase 3: Preload & optimize",
+      "goal": "Add proactive image preloading for common screens and optimize response caching",
+      "description": "Add preloadImage() calls at strategic points in the app lifecycle and on app start, so images are cached before users see them, and add a fallback/placeholder strategy.",
+      "parallel": false,
+      "status": "planned",
+      "steps": [
+        {
+          "id": "step-1",
+          "index": 1,
+          "description": "Add preloading in splash.dart and main.dart - preload common images (logos, avatars) on app init",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-2",
+          "index": 2,
+          "description": "Add preloading for student photos when the student list loads (in chat_bubble.dart's initState)",
+          "status": "pending",
+          "parallel": false
+        },
+        {
+          "id": "step-3",
+          "index": 3,
+          "description": "Verify all cached images work with loading/error/placeholder states and no exceptions leak to users",
+          "status": "pending",
+          "parallel": false
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D001",
+      "title": "Created wrapper infrastructure first",
+      "description": "Phase 1 creates the 3 infrastructure files (wrapper widget, cache service, provider) before touching any existing Image.network() calls. Phase 2 then replaces all calls.",
+      "createdAt": "2026-07-03T09:48:07.435Z"
+    },
+    {
+      "id": "D002",
+      "title": "Paused — user wants to apply changes manually",
+      "description": "The user has the complete solution plan. They'll apply the 3 new files and replace all Image.network() calls themselves.",
+      "createdAt": "2026-07-03T10:02:26.373Z"
+    }
+  ],
+  "memories": [],
+  "createdAt": "2026-07-03T09:00:41.459Z",
+  "updatedAt": "2026-07-05T11:54:57.297Z",
+  "goal": "Replace all raw `Image.network()` calls with a proper caching layer using `cached_network_image` + a dedicated image cache service, with error handling that never shows exceptions to users.",
+  "successCriteria": [
+    "All Image.network() calls replaced with CachedNetworkImageWrapper",
+    "No error messages or exceptions visible to end users",
+    "Preloaded images show immediately without network delay",
+    "App compiles and runs without regressions"
+  ],
+  "constraints": [
+    "Must not break any existing functionality",
+    "Must use existing cached_network_image dependency (already in pubspec)",
+    "Must handle all error states gracefully (network failure, invalid URL, empty URL)"
+  ],
+  "lastActiveAt": "2026-07-03T09:47:14.173Z",
+  "activePhaseId": "phase-1"
+}

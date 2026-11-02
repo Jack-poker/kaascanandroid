@@ -1,19 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:kaascan/Auth/login.dart';
-import 'package:kaascan/Auth/register.dart';
+import 'package:google_fonts/google_fonts.dart' show GoogleFonts;
 import 'package:kaascan/components/deposit.dart';
-import 'package:kaascan/dashboard/home.dart';
-import 'package:kaascan/dashboard/shopTransafer.dart';
-import 'package:kaascan/dashboard/transactions.dart';
-import 'package:kaascan/firebase_options.dart';
-import 'package:kaascan/onBoradingScreen.dart';
-import 'package:kaascan/Auth/pinAuth.dart';
 import 'package:kaascan/services/language_service.dart';
 import 'package:kaascan/controllers/ads_controller.dart';
 import 'package:kaascan/splash.dart';
@@ -27,27 +19,23 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:kaascan/components/no_internet_modal.dart';
-import 'package:kaascan/services/pos_logger.dart';
-import 'package:kaascan/services/pos_extension_service.dart';
-import 'package:kaascan/components/transferScan.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:kaascan/sdk/kaascan_sdk.dart';
+import 'package:kaascan/Auth/login.dart';
+import 'package:kaascan/Api/client.dart';
 
-const bool noGms = bool.fromEnvironment('NO_GMS', defaultValue: false);
-
-const Color myColor = Color.fromARGB(255, 0, 34, 255);
-const Color myWhite = Colors.white;
-const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
-const Color deepNavy = Color(0xFF1A1F36);
-const Color softGray = Color(0xFF9CA3AF);
-const Color cloudWhite = Color(0xFFFAFBFC);
-const Color lightBlue = Color(0xFFE6F0FF);
-const Color successGreen = Color(0xFF10B981);
-const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
-const String n8nContactListUrl =
+Color myColor = Color.fromARGB(255, 0, 34, 255);
+Color myWhite = Colors.white;
+Color myOpblue = Color.fromARGB(179, 137, 160, 255);
+Color deepNavy = Color(0xFF1A1F36);
+Color softGray = Color(0xFF9CA3AF);
+Color cloudWhite = Color(0xFFFAFBFC);
+Color lightBlue = Color(0xFFE6F0FF);
+Color successGreen = Color(0xFF10B981);
+Color warningYellow = Color.fromARGB(255, 255, 60, 0);
+String n8nContactListUrl =
     'https://automation.kaascan.com/webhook/contact-numbers';
 
 // void checkForUpdate() async {
@@ -69,6 +57,8 @@ var txStatus = "".obs;
 var transaction_timer = 0.obs;
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 Future<void> sendLogs(String error, String stack) async {
   try {
@@ -83,7 +73,7 @@ Future<void> sendLogs(String error, String stack) async {
       Uri.parse(n8nWebhookUrl),
       headers: {'Content-Type': 'application/json'},
       body: body,
-    );
+    ).timeout(const Duration(seconds: 10));
     if (response.statusCode == 200) {
       print('Logs sent successfully');
     } else {
@@ -97,7 +87,7 @@ Future<void> sendLogs(String error, String stack) async {
 Future<void> clearSharedPrefs() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
-  print("✅ SharedPreferences cleared!");
+  print("[*] SharedPreferences cleared!");
 }
 
 IOWebSocketChannel? _channel;
@@ -106,41 +96,11 @@ StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 bool _isConnected = true;
 String? _androidId;
 
-Future<void> updateFcmTokenIfPhoneExists() async {
-  final prefs = await SharedPreferences.getInstance();
-  final phone = prefs.getString('phonenumber');
-  final fcmToken = prefs.getString('fcm_token');
-  if (phone != null && fcmToken != null) {
-    try {
-      const n8nWebhookUrl = 'https://automation.kaascan.com/webhook/update-fcm';
-      final body = jsonEncode({
-        "phone": phone,
-        "fcm_token": fcmToken,
-        "timestamp": DateTime.now().toIso8601String(),
-      });
-      final response = await http.post(
-        Uri.parse(n8nWebhookUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-      if (response.statusCode == 200) {
-        print('FCM token updated successfully for $phone');
-      } else {
-        print('Failed to update FCM token: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error updating FCM token: $e');
-    }
-  } else {
-    print("⚠️ Phone number or FCM token not found, skipping update.");
-  }
-}
-
 Future<List<String>> fetchContactNumbersFromN8n() async {
   try {
     final response = await http
         .get(Uri.parse(n8nContactListUrl))
-        .timeout(const Duration(seconds: 10));
+        .timeout(Duration(seconds: 10));
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
       final numbers =
@@ -206,8 +166,7 @@ void showAwesomeNotification(BuildContext context, String title, String body) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       title: Text(
         title,
-        style: TextStyle(
-          fontFamily: 'gilroy',
+        style: GoogleFonts.spaceGrotesk(
           fontWeight: FontWeight.bold,
           color: myColor,
           fontSize: 20,
@@ -215,19 +174,14 @@ void showAwesomeNotification(BuildContext context, String title, String body) {
       ),
       content: Text(
         body,
-        style: TextStyle(
-          fontFamily: 'gilroy',
-          color: Colors.black87,
-          fontSize: 16,
-        ),
+        style: GoogleFonts.spaceGrotesk(color: Colors.black87, fontSize: 16),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(),
           child: Text(
             'OK',
-            style: TextStyle(
-              fontFamily: 'Gilroy',
+            style: GoogleFonts.spaceGrotesk(
               color: myColor,
               fontWeight: FontWeight.w600,
             ),
@@ -366,203 +320,6 @@ Future<bool> requestAllPermissions() async {
   }
 }
 
-void _showCustomNotificationDialog(RemoteMessage message) {
-  String title =
-      message.notification?.title ??
-      languageService.t('notifications.notification', fallback: "Notification");
-  String body = message.notification?.body ?? "";
-
-  // Parse JSON if possible, otherwise use as plain text
-  Map<String, dynamic> fcmMsg = {};
-  String displayMessage = body;
-  try {
-    if (body.trim().startsWith('{')) {
-      fcmMsg = jsonDecode(body);
-      displayMessage = fcmMsg['message']?.toString() ?? body;
-    }
-  } catch (e) {
-    // Keep displayMessage as body
-  }
-
-  String action = fcmMsg['action']?.toString() ?? "";
-  bool showButton = fcmMsg['button_visible']?.toString() == "true";
-  String buttonText =
-      fcmMsg['button_text']?.toString() ??
-      languageService.t('notifications.open', fallback: "Open");
-  String? buttonLink = fcmMsg['button_link']?.toString();
-  int? statusCode = fcmMsg['status_code'] != null
-      ? int.tryParse(fcmMsg['status_code'].toString())
-      : null;
-
-  showDialog(
-    context: navigatorKey.currentContext!,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      bool isSuccess = statusCode == 200 || statusCode == 301;
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: (isSuccess ? successGreen : Colors.redAccent)
-                    .withOpacity(0.2),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header with color band or icon
-              Container(
-                height: 120,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: (isSuccess ? successGreen : Colors.redAccent)
-                      .withOpacity(0.1),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
-                  ),
-                ),
-                child: Center(
-                  child: Icon(
-                    isSuccess
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.error_outline_rounded,
-                    size: 64,
-                    color: isSuccess ? successGreen : Colors.redAccent,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  children: [
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: "gilroy",
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      displayMessage,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: "gilroy",
-                        fontSize: 15,
-                        color: Colors.grey[600],
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Button Row
-                    Row(
-                      children: [
-                        if (showButton && buttonLink != null)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: _buildPremiumButton(
-                                text: buttonText,
-                                color: myColor,
-                                onPressed: () async {
-                                  Navigator.pop(context);
-                                  Uri uri = Uri.parse(buttonLink);
-                                  if (await canLaunchUrl(uri))
-                                    await launchUrl(uri);
-                                },
-                              ),
-                            ),
-                          ),
-
-                        Expanded(
-                          child: _buildPremiumButton(
-                            text: (action == "go_home")
-                                ? languageService.t(
-                                    'common.continue',
-                                    fallback: "Gukomeza",
-                                  )
-                                : "OK",
-                            color: isSuccess ? successGreen : myColor,
-                            onPressed: () {
-                              if (action == "go_home") {
-                                transaction_processing.value = false;
-                                transaction_processing_status.value = false;
-                                Navigator.of(context).pop();
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) => DashboardNav(),
-                                  ),
-                                  (Route<dynamic> route) => false,
-                                );
-                              } else {
-                                Navigator.pop(context);
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-Widget _buildPremiumButton({
-  required String text,
-  required Color color,
-  required VoidCallback onPressed,
-}) {
-  return Container(
-    height: 54,
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: color.withOpacity(0.3),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(16),
-        child: Center(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontFamily: "gilroy",
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
 void main() {
   runZonedGuarded(
     () async {
@@ -578,8 +335,18 @@ void main() {
         ).catchError((_) {});
       };
 
+    
+
+      if (await Permission.notification.isDenied) {
+        await Permission.notification.request();
+      }
+
+      // Subscribe to ntfy with device-specific topic (generated from Android ID)
+      // This runs early so push notifications start immediately.
+      kaascan_sdk().subscribeToNtfy();
+
       // 3. Start the app
-      runApp(const MyApp());
+      runApp(MyApp());
     },
     (Object error, StackTrace stackTrace) {
       print("CRITICAL ASYNC ERROR: $error");
@@ -589,7 +356,7 @@ void main() {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -614,95 +381,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _bootstrapApp() async {
     // Wait for the app to settle before heavy init
-    await Future.delayed(const Duration(milliseconds: 1500));
-    
-    // Initialize POS Logger and Bridge
-    PosLogger().initialize();
-    PosLogger().log('🚀 POS Extension Bridge Initialized');
-    
-    // Auto-initialize printer configuration
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final mac = prefs.getString('printer_mac') ?? "00:12:12:12:33:33";
-      await PosExtensionService().setPrinterMac(mac);
-      PosLogger().log('🔗 Printer Auto-Initialzed: $mac');
-    } catch (e) {
-      PosLogger().log('⚠️ Printer Auto-Init Failed: $e', isError: true);
-    }
+    await Future.delayed(Duration(milliseconds: 1500));
 
-    // 2. Initialize Firebase safely
-    if (!noGms) {
-      try {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 15));
-
-        FirebaseMessaging.instance.setAutoInitEnabled(false);
-        // Corrected method name for FirebaseInAppMessaging 0.9.0+
-        // try {
-        //   FirebaseInAppMessaging.instance.setMessagesDisplayPaused(true);
-        // } catch (_) {}
-      } catch (e) {
-        print("Firebase bootstrap error: $e");
-      }
-    } else {
-      print("NO_GMS mode: Skipping Firebase initialization");
-    }
-
-    // 3. Initialize Secondary Services in parallel
-    if (!noGms) {
-      Future.wait([
-        languageService.initialize().catchError(
-          (e) => print("Lang init failed: $e"),
-        ),
-        _initFcm().catchError((e) => print("FCM init failed: $e")),
-      ]);
-    } else {
-      await languageService.initialize().catchError(
-        (e) => print("Lang init failed: $e"),
-      );
-    }
-
-    // 4. Setup Messaging Listeners
-    if (!noGms) {
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        if (message.notification != null) {
-          final body = message.notification!.body ?? '';
-          try {
-            final statusCode = jsonDecode(body);
-            if (statusCode != null && statusCode['status_code'] == 301) {
-              transaction_processing_status.value = false;
-            }
-          } catch (_) {}
-          _showCustomNotificationDialog(message);
-        }
-      });
-
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        _showCustomNotificationDialog(message);
-      });
-    }
+    // Initialize services
+    await languageService.initialize().catchError(
+      (e) => print("Lang init failed: $e"),
+    );
 
     _storeDeviceid();
-    if (!noGms) {
-      updateFcmTokenIfPhoneExists();
-    }
     _maybeShowContactPermissionPrompt();
 
-    print("🚀 App Bootstrap Complete");
-  }
+    // Wire up JWT expiry handler — on 401, clear session & go to login
+    onAuthExpired = () {
+      clearSharedPrefs().then((_) {
+        navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const loginScreen()),
+          (route) => false,
+        );
+      });
+    };
 
-  Future<void> _initFcm() async {
-    try {
-      final fcmToken = await FirebaseMessaging.instance.getToken();
-      if (fcmToken != null) {
-        var tempStorage = await SharedPreferences.getInstance();
-        await tempStorage.setString('fcm_token', fcmToken);
-        print("[FCM TOKEN] :: $fcmToken");
-      }
-    } catch (e) {
-      print("FCM Token fetch failed: $e");
-    }
+    print("[*] App Bootstrap Complete");
   }
 
   StreamSubscription<List<ConnectivityResult>>? _internetSubscription;
@@ -730,7 +429,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (_isOfflineModalVisible) return;
 
     // Slight delay to ensure context is ready or to avoid flickering on quick switches
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(Duration(milliseconds: 500), () {
       if (_isOfflineModalVisible) return; // double check
 
       final context = navigatorKey.currentContext;
@@ -745,15 +444,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             results.contains(ConnectivityResult.vpn);
 
         if (!hasConnection) {
-          if (scanTransfer.muteOfflineDialog) {
-            debugPrint('🔇 Global offline dialog muted by Merchant Screen');
-            return;
-          }
+          // Merchant offline dialog mute removed
           _isOfflineModalVisible = true;
           showDialog(
             context: context,
             barrierDismissible: true, // Allow dismissal for offline mode
-            builder: (context) => const NoInternetModal(),
+            builder: (context) => NoInternetModal(),
           ).then((_) {
             _isOfflineModalVisible = false;
           });
@@ -813,11 +509,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
 
     // Delay to ensure Splash Screen is done (approx 3-5 seconds based on user needs)
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      _contactPromptShown = true;
-      _showContactPermissionPrompt();
-    });
+    // Future.delayed(Duration(seconds: 5), () {
+    //   if (!mounted) return;
+    //   _contactPromptShown = true;
+    //   _showContactPermissionPrompt();
+    // });
   }
 
   Future<void> _showContactPermissionPrompt() async {
@@ -840,57 +536,53 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: myColor.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.contacts_rounded,
                         size: 48,
                         color: myColor,
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
+                    SizedBox(height: 24),
+                    Text(
                       'Uruhushya rwa Contact',
-                      style: TextStyle(
+                      style: GoogleFonts.spaceGrotesk(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: myColor,
-                        fontFamily: "gilroy-light",
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
+                    SizedBox(height: 16),
+                    Text(
                       'Kugirango ubashe gukoresha Kaascan neza, turagusaba uruhushya rwo kubika nimero zacu muri telephone yawe. Ibi biragufasha kutabura amakuru n\'ubutumwa bw\'ingenzi.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: GoogleFonts.spaceGrotesk(
                         fontSize: 15,
                         color: Color(0xFF4B5563), // dark gray
-                        fontFamily: "gilroy-light",
+
                         height: 1.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     if (statusMessage.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
+                        padding: EdgeInsets.only(bottom: 16),
                         child: Text(
                           statusMessage,
-                          style: TextStyle(
+                          style: GoogleFonts.spaceGrotesk(
                             fontSize: 13,
-                            fontFamily: "gilroy",
+
                             color: statusMessage.contains('Success')
                                 ? successGreen
                                 : Colors.redAccent,
@@ -906,7 +598,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                           backgroundColor: myColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
-                          ),                          elevation: 0,
+                          ),
+                          elevation: 0,
                         ),
                         onPressed: isProcessing
                             ? null
@@ -937,7 +630,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                                     statusMessage =
                                         'Byakunze! Nimero za Kaascan zabitswe.';
                                     Future.delayed(
-                                      const Duration(milliseconds: 1000),
+                                      Duration(milliseconds: 1000),
                                       () {
                                         if (mounted &&
                                             Navigator.canPop(context))
@@ -959,7 +652,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                                 });
                               },
                         child: isProcessing
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 24,
                                 width: 24,
                                 child: CircularProgressIndicator(
@@ -969,10 +662,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                                   ),
                                 ),
                               )
-                            : const Text(
+                            : Text(
                                 'Emeza (Allow)',
-                                style: TextStyle(
-                                  fontFamily: "gilroy",
+                                style: GoogleFonts.spaceGrotesk(
                                   color: myWhite,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -994,18 +686,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       navigatorKey: navigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       title: 'kaascan',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const Splashscreen(),
+      home: Splashscreen(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  MyHomePage({super.key, required this.title});
 
   final String title;
 
@@ -1033,7 +726,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            const Text('You have pushed the button this many times:'),
+            Text('You have pushed the button this many times:'),
             Text(
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
@@ -1044,7 +737,7 @@ class _MyHomePageState extends State<MyHomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
         tooltip: 'Increment',
-        child: const Icon(Icons.add),
+        child: Icon(Icons.add),
       ),
     );
   }

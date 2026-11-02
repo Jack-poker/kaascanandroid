@@ -1,0 +1,74 @@
+plugins {
+    id "com.android.application"
+    // id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+
+android {
+    namespace "com.kaascan.application"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // kotlinOptions {
+    //     jvmTarget = "11"
+    // }
+
+    defaultConfig {
+        applicationId "com.kaascan.application"
+        minSdkVersion flutter.minSdkVersion
+        targetSdk flutter.targetSdkVersion
+        versionCode flutter.versionCode
+        versionName flutter.versionName
+        multiDexEnabled true
+    }
+
+    // // Split APKs by ABI to reduce app size — NOT needed for App Bundles
+    // splits {
+    //     abi {
+    //         enable true
+    //         reset()
+    //         include "armeabi-v7a", "arm64-v8a", "x86_64"
+    //         universalApk true
+    //     }
+    // }
+
+    signingConfigs {
+        release {
+            storeFile file("new-upload-key.jks")
+            storePassword "0790467621"
+            keyAlias "upload"
+            keyPassword "0790467621"
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    dependencies {
+        implementation fileTree(dir: "libs", include: ["*.jar"])
+    }
+}
+
+flutter {
+    source "../.."
+}

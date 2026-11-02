@@ -139,7 +139,7 @@ class _SplashscreenState extends State<Splashscreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    "v2.0.3 • Crafted with Excellence",
+                    "v3.0.0 • Crafted with Excellence",
                     style: TextStyle(
                       fontFamily: "gilroy-light",
                       fontSize: 10,

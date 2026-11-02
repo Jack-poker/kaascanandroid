@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:kaascan/Auth/login.dart';
-import 'package:kaascan/Auth/login_new.dart';
+import 'package:kaascan/Auth/login.dart';
 import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:kaascan/dashboard/home.dart';
+import 'package:kaascan/provider/values_provider.dart';
+import 'package:kaascan/screens/kaascan_ai.dart';
+import 'package:provider/provider.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:pinput/pinput.dart';
 import 'package:kaascan/Api/client.dart';
@@ -108,20 +111,10 @@ class _pinScreenState extends State<pinScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                             decoration: BoxDecoration(
-                              color: Color.fromARGB(
-                                255,
-                                255,
-                                60,
-                                0,
-                              ).withOpacity(0.05),
+                              color: Color.fromARGB(255, 155, 178, 255).withOpacity(0.05),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Color.fromARGB(
-                                  255,
-                                  255,
-                                  60,
-                                  0,
-                                ).withOpacity(0.2),
+                                color:myBlue,
                                 width: 1,
                               ),
                             ),
@@ -134,15 +127,10 @@ class _pinScreenState extends State<pinScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                             decoration: BoxDecoration(
-                              color: Color.fromARGB(
-                                255,
-                                255,
-                                60,
-                                0,
-                              ).withOpacity(0.05),
+                              color: Color.fromARGB(255, 138, 161, 255).withOpacity(0.05),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Color.fromARGB(255, 255, 60, 0),
+                                color: Color.fromARGB(255, 0, 94, 255),
                                 width: 2,
                               ),
                             ),
@@ -172,7 +160,7 @@ class _pinScreenState extends State<pinScreen> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const loginScreen_new(),
+                    builder: (context) => const loginScreen(),
                   ),
                 );
               },
@@ -186,7 +174,7 @@ class _pinScreenState extends State<pinScreen> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const loginScreen_new(),
+                    builder: (context) => const loginScreen(),
                   ),
                 );
               },
@@ -292,7 +280,7 @@ class _pinScreenState extends State<pinScreen> {
             Text(
               languageService.t(
                 'auth.secure_encryption',
-                fallback: "SSL 256-bit Encrypted Security",
+                fallback: "kaascan",
               ),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
@@ -311,12 +299,12 @@ class _pinScreenState extends State<pinScreen> {
             const SizedBox(width: 8),
             // _buildSmallBadge("ISO 27001"),
             const SizedBox(width: 8),
-            _buildSmallBadge(
-              languageService.t(
-                'auth.bank_grade_security',
-                fallback: "DATA-CONTROLLER Certified",
-              ),
-            ),
+            // _buildSmallBadge(
+            //   languageService.t(
+            //     'auth.bank_grade_security',
+            //     fallback: "DATA-CONTROLLER Certified",
+            //   ),
+            // ),
           ],
         ),
       ],
@@ -347,7 +335,7 @@ class _pinScreenState extends State<pinScreen> {
     return Container(
       width: double.infinity,
       height: double.infinity,
-      decoration: const BoxDecoration(color: Color.fromARGB(255, 255, 60, 0)),
+      decoration: const BoxDecoration(color:myBlue),
       child: Stack(
         children: [
           // Positioned(
@@ -500,8 +488,10 @@ class _pinScreenState extends State<pinScreen> {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      DevicePermissionScreen(phoneNumber: widget.phonenumber),
+                  builder: (innerContext) => ChangeNotifierProvider<ValuesProvider>(
+                    create: (_) => ValuesProvider(),
+                    child: DashboardNav(),
+                  ),
                 ),
               );
             }
@@ -509,8 +499,8 @@ class _pinScreenState extends State<pinScreen> {
         } else {
           Loader.hide();
           _showModernDialog(
-            title: "OTP ntabwo ariyo",
-            message: "Kode ya OTP winjije ntabwo ari yo. Ongera ugerageze.",
+            title: "code ntabwo ariyo",
+            message: "code ya otp winjije ntabwo ari yo. Ongera ugerageze.",
           );
         }
       });

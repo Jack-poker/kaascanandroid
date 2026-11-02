@@ -3,18 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kaascan/Api/client.dart';
-import 'package:kaascan/Auth/login_new.dart';
+import 'package:kaascan/Auth/login.dart';
 import 'package:kaascan/Auth/pinAuth.dart' hide myColor, myWhite;
-import 'package:kaascan/components/transferScan.dart' hide myColor;
 import 'package:kaascan/dashboard/home.dart' hide myColor, myWhite;
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
-import '../dashboard/shopTransafer.dart' show Transfer;
-import 'package:kaascan/services/local_db_service.dart';
 import 'package:kaascan/services/language_service.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:bcrypt/bcrypt.dart';
 
 // Premium design constants
 const Color deepPurple = Color(0xFF130B2B);
@@ -133,64 +128,21 @@ class _UnifiedAuthScreenState extends State<UnifiedAuthScreen>
             );
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const loginScreen_new()),
+              MaterialPageRoute(builder: (context) => const loginScreen()),
               (route) => false,
             );
           } else {
-            if (widget.role == "merchant") {
-              _onAuthSuccess();
-            } else {
-              _navigateToPermission();
-            }
+             Navigator.pushAndRemoveUntil(
+              // ignore: use_build_context_synchronously
+              context,
+              MaterialPageRoute(builder: (context) => const loginScreen()),
+              (route) => false,
+            );
           }
         } else {
           _handleError();
         }
       } else {
-        // --- SECURE OFFLINE LOGIN LOGIC ---
-        final List<ConnectivityResult> connectivityResult = await (Connectivity().checkConnectivity());
-        final bool isOffline = connectivityResult.contains(ConnectivityResult.none);
-        
-        if (isOffline) {
-          debugPrint("📡 Offline detected. Attempting local authentication...");
-          final String? cachedHash = prefs.getString("offline_pin_hash_${widget.phoneNumber}");
-          final String? cachedToken = prefs.getString("login_token");
-          final int lastSync = prefs.getInt("last_online_login_${widget.phoneNumber}") ?? 0;
-          
-          // Security TTL: Force online re-validation after 24 hours
-          final int now = DateTime.now().millisecondsSinceEpoch;
-          final bool isSessionExpired = (now - lastSync) > (24 * 60 * 60 * 1000);
-
-          if (isSessionExpired) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Offline session expired. Please connect to internet to re-verify.")),
-            );
-            _handleError();
-            return;
-          }
-
-          if (cachedHash != null && cachedToken != null) {
-            // Verify PIN against cached hash using BCrypt
-            if (BCrypt.checkpw(_pin, cachedHash)) {
-              debugPrint("✅ Local authentication successful.");
-              await prefs.setString("user_role", widget.role);
-              _onAuthSuccess();
-              return;
-            } else {
-              debugPrint("❌ Local authentication failed: Invalid PIN.");
-              _handleError();
-              return;
-            }
-          } else {
-            debugPrint("❌ Local authentication failed: No cached data.");
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Internet required for first-time login.")),
-            );
-            _handleError();
-            return;
-          }
-        }
-
         // Regular online login with PIN
         final res = await app.Login(
           context,
@@ -201,12 +153,6 @@ class _UnifiedAuthScreenState extends State<UnifiedAuthScreen>
         );
 
         if (res.statusCode == 200 && res.data["status"] == "success") {
-          // SECURE PIN CACHING: Store hash with BCrypt
-          final String salt = BCrypt.gensalt();
-          final String hash = BCrypt.hashpw(_pin, salt);
-          await prefs.setString("offline_pin_hash_${widget.phoneNumber}", hash);
-          await prefs.setInt("last_online_login_${widget.phoneNumber}", DateTime.now().millisecondsSinceEpoch);
-          
           await prefs.setString("login_token", res.data["token"]);
           await prefs.setString("user_role", widget.role);
           _onAuthSuccess();
@@ -246,14 +192,6 @@ class _UnifiedAuthScreenState extends State<UnifiedAuthScreen>
   }
 
   void _onAuthSuccess() {
-    if (widget.role == "merchant") {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const Transfer()),
-        (route) => false,
-      );
-      return;
-    }
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => DashboardNav()),
@@ -751,7 +689,7 @@ class _DevicePermissionScreenState extends State<DevicePermissionScreen> {
           ),
         ),
         Switch(
-          value: value,
+          value: true,
           onChanged: onChanged,
           activeColor: Colors.white,
           activeTrackColor: const Color.fromARGB(255, 255, 60, 0),
