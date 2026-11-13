@@ -15,7 +15,7 @@ import 'package:kaascan/services/language_service.dart';
 const Color deepPurple = Color(0xFF130B2B);
 const Color accentPurple = Color(0xFF8B5CF6);
 const Color softPurple = Color(0xFF2D1B5D);
-const Color myBlue = Color.fromARGB(255, 0, 34, 255);
+const Color myBlue = deepPurple; // Primary color for the app
 
 class UnifiedAuthScreen extends StatefulWidget {
   final String phoneNumber;
@@ -221,12 +221,12 @@ class _UnifiedAuthScreenState extends State<UnifiedAuthScreen>
           Positioned(
             top: -100,
             right: -50,
-            child: _buildBlurCircle(300, accentPurple.withOpacity(0.15)),
+            child: _buildBlurCircle(300, accentPurple.withValues(alpha: 0.15)),
           ),
           Positioned(
             bottom: -50,
             left: -50,
-            child: _buildBlurCircle(200, myBlue.withOpacity(0.15)),
+            child: _buildBlurCircle(200, myBlue.withValues(alpha: 0.15)),
           ),
 
           SafeArea(
@@ -280,7 +280,7 @@ class _UnifiedAuthScreenState extends State<UnifiedAuthScreen>
 
           if (_isLoading)
             Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: Center(
                 child: LoadingAnimationWidget.discreteCircle(
                   color: myColor,
@@ -350,7 +350,7 @@ class _UnifiedAuthScreenState extends State<UnifiedAuthScreen>
                 : languageService.t('auth.enter_pin_subtitle', fallback: "Enter your 4-digit PIN or use fingerprint."),
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: isSmall ? 12 : 15,
               fontFamily: "gilroy-light",
               height: 1.4,
@@ -499,7 +499,7 @@ class _DevicePermissionScreenState extends State<DevicePermissionScreen> {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
+                                color: Colors.white.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Stack(
@@ -553,7 +553,7 @@ class _DevicePermissionScreenState extends State<DevicePermissionScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(24),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.05),
+                                    color: Colors.white.withValues(alpha: 0.05),
                                     borderRadius: BorderRadius.circular(32),
                                     border: Border.all(
                                       color: Colors.deepOrange,
@@ -691,7 +691,7 @@ class _DevicePermissionScreenState extends State<DevicePermissionScreen> {
         Switch(
           value: true,
           onChanged: onChanged,
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           activeTrackColor: const Color.fromARGB(255, 255, 60, 0),
           inactiveThumbColor: Colors.white54,
           inactiveTrackColor: Colors.white10,

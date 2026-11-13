@@ -34,7 +34,7 @@ class Students extends StatefulWidget {
 
 class _StudentsState extends State<Students> with TickerProviderStateMixin {
   bool _appLoading = true;
-  bool _qrCodeScanning = true;
+  final bool _qrCodeScanning = true;
   bool _isCardView = true;
   double accountBalance = 0.0;
   String accountName = "";
@@ -244,7 +244,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
     final tempStorage = await SharedPreferences.getInstance();
     final pin = tempStorage.getString(studentId) ?? "";
     setState(() {
-      this.studentPin = pin;
+      studentPin = pin;
     });
     return pin;
   }
@@ -272,6 +272,8 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
         listStudent = List<Map<String, dynamic>>.from(
           studentsRes.data["students"] ?? [],
         );
+
+        print(listStudent);
         accountBalance =
             (balanceRes.data["balance"] as num?)?.toDouble() ?? 0.0;
 
@@ -376,7 +378,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: myColor.withOpacity(0.1),
+                            color: myColor.withValues(alpha: 0.1),
                             blurRadius: 20,
                             offset: Offset(0, 10),
                           ),
@@ -390,7 +392,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: LinearGradient(
-                                colors: [myColor.withOpacity(0.2), lightBlue],
+                                colors: [myColor.withValues(alpha: 0.2), lightBlue],
                               ),
                             ),
                             child: ClipOval(
@@ -476,7 +478,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
                                 borderSide: BorderSide(
-                                  color: softGray.withOpacity(0.2),
+                                  color: softGray.withValues(alpha: 0.2),
                                   width: 1,
                                 ),
                               ),
@@ -512,7 +514,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 elevation: 0,
-                                shadowColor: myColor.withOpacity(0.3),
+                                shadowColor: myColor.withValues(alpha: 0.3),
                               ),
                               onPressed: isPinValid
                                   ? () async {
@@ -723,7 +725,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       height: 5,
                       width: 50,
                       decoration: BoxDecoration(
-                        color: softGray.withOpacity(0.2),
+                        color: softGray.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
@@ -731,7 +733,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: successGreen.withOpacity(0.1),
+                        color: successGreen.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -767,7 +769,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       decoration: BoxDecoration(
                         color: cloudWhite,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: softGray.withOpacity(0.1)),
+                        border: Border.all(color: softGray.withValues(alpha: 0.1)),
                       ),
                       child: Column(
                         children: [
@@ -798,10 +800,10 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.05),
+                        color: Colors.orange.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: Colors.orange.withValues(alpha: 0.1),
                         ),
                       ),
                       child: Row(
@@ -829,7 +831,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                   "Please share this PIN securely with the student. It is required for all card-based payments.",
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.orange.withOpacity(0.8),
+                                    color: Colors.orange.withValues(alpha: 0.8),
                                     fontFamily: "gilroy-light",
                                     height: 1.4,
                                   ),
@@ -888,7 +890,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                     height: 5,
                     width: 50,
                     decoration: BoxDecoration(
-                      color: softGray.withOpacity(0.2),
+                      color: softGray.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -930,7 +932,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       fillColor: cloudWhite,
                       hintText: "0000",
                       hintStyle: TextStyle(
-                        color: softGray.withOpacity(0.3),
+                        color: softGray.withValues(alpha: 0.3),
                         letterSpacing: 10,
                       ),
                       border: OutlineInputBorder(
@@ -940,7 +942,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide(
-                          color: softGray.withOpacity(0.1),
+                          color: softGray.withValues(alpha: 0.1),
                           width: 1.5,
                         ),
                       ),
@@ -982,7 +984,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                             borderRadius: BorderRadius.circular(18),
                           ),
                           elevation: 8,
-                          shadowColor: myColor.withOpacity(0.3),
+                          shadowColor: myColor.withValues(alpha: 0.3),
                         ),
                         onPressed: resetPin,
                         child: const Text(
@@ -1027,8 +1029,8 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: success
-                        ? successGreen.withOpacity(0.1)
-                        : Colors.red.withOpacity(0.1),
+                        ? successGreen.withValues(alpha: 0.1)
+                        : Colors.red.withValues(alpha: 0.1),
                   ),
                   child: Icon(
                     success ? Icons.check_circle : Icons.cancel,
@@ -1123,7 +1125,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
           // Loading overlay
           if (_appLoading)
             Container(
-              color: myBlue.withOpacity(0.8),
+              color: myBlue.withValues(alpha: 0.8),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1268,7 +1270,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                     height: 200,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: myWhite.withOpacity(0.03),
+                      color: myWhite.withValues(alpha: 0.03),
                     ),
                   ),
                 ),
@@ -1304,7 +1306,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                   children: [
                                     Icon(
                                       Icons.school,
-                                      color: myColor.withOpacity(0.6),
+                                      color: myColor.withValues(alpha: 0.6),
                                       size: 12,
                                     ),
                                     const SizedBox(width: 4),
@@ -1314,7 +1316,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                             ? "Scan to add"
                                             : schoolName,
                                         style: TextStyle(
-                                          color: myColor.withOpacity(0.7),
+                                          color: myColor.withValues(alpha: 0.7),
                                           fontSize: 12,
                                           fontFamily: "gilroy-light",
                                           fontWeight: FontWeight.w500,
@@ -1342,7 +1344,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                 Text(
                                   "Pocket Money",
                                   style: TextStyle(
-                                    color: myColor.withOpacity(0.5),
+                                    color: myColor.withValues(alpha: 0.5),
                                     fontSize: 10,
                                     letterSpacing: 1.5,
                                     fontWeight: FontWeight.w700,
@@ -1380,7 +1382,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
   void _showFullImageDialog(String? imageUrl) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.9),
+      barrierColor: Colors.black.withValues(alpha: 0.9),
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.zero,
@@ -1435,10 +1437,10 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
         height: 65,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: myWhite.withOpacity(0.2), width: 2),
+          border: Border.all(color: myWhite.withValues(alpha: 0.2), width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1469,7 +1471,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
       icon: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: myWhite.withOpacity(0.1),
+          color: myWhite.withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: const Icon(Icons.more_horiz, color: myColor, size: 18),
@@ -1758,15 +1760,15 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       0,
                       55,
                       255,
-                    ).withOpacity(0.03),
+                    ).withValues(alpha: 0.03),
                     blurRadius: 15,
                     offset: const Offset(0, 6),
                   ),
                 ],
                 border: Border.all(
                   color: isSelected
-                      ? const Color.fromARGB(87, 0, 55, 255).withOpacity(0.3)
-                      : const Color.fromARGB(138, 0, 55, 255).withOpacity(0.06),
+                      ? const Color.fromARGB(87, 0, 55, 255).withValues(alpha: 0.3)
+                      : const Color.fromARGB(138, 0, 55, 255).withValues(alpha: 0.06),
                   width: 1.2,
                 ),
               ),
@@ -1818,7 +1820,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                     15,
                                     15,
                                     15,
-                                  ).withOpacity(0.1),
+                                  ).withValues(alpha: 0.1),
                             width: 2,
                           ),
                         ),
@@ -1879,7 +1881,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: myColor.withOpacity(0.1),
+                                color: myColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -1975,7 +1977,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                 height: 4,
                 width: 40,
                 decoration: BoxDecoration(
-                  color: softGray.withOpacity(0.3),
+                  color: softGray.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1983,7 +1985,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.delete_forever, color: Colors.red, size: 40),
@@ -2288,7 +2290,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                       statusIcon = Icons.sync_rounded;
                     } else {
                       if (isNegative) {
-                        cardBg = brandOrange.withOpacity(0.08);
+                        cardBg = const Color.fromARGB(255, 252, 250, 250);
                         iconBg = brandOrange;
                         iconColor = Colors.white;
                         statusIcon = Icons.arrow_outward_rounded;
@@ -2307,14 +2309,14 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
+                            color: Colors.black.withValues(alpha: 0.03),
                             blurRadius: 15,
                             offset: const Offset(0, 8),
                           ),
                         ],
                         border: Border.all(
                           color: (isNegative ? brandOrange : brandBlue)
-                              .withOpacity(0.1),
+                              .withValues(alpha: 0.1),
                           width: 1.2,
                         ),
                       ),
@@ -2324,6 +2326,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                           children: [
                             // Premium Leader with Multi-radius
                             Container(
+                              
                               width: 52,
                               height: 52,
                               decoration: BoxDecoration(
@@ -2400,11 +2403,11 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                                   ),
                                   decoration: BoxDecoration(
                                     color: (status == 'failed')
-                                        ? Colors.redAccent.withOpacity(0.1)
+                                        ? Colors.redAccent.withValues(alpha: 0.1)
                                         : (status == 'pending')
-                                        ? brandOrange.withOpacity(0.1)
+                                        ? brandOrange.withValues(alpha: 0.1)
                                         : (isNegative ? brandOrange : brandBlue)
-                                              .withOpacity(0.1),
+                                              .withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(

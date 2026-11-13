@@ -97,7 +97,7 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
   }
 
   Future<void> _handleTransfer() async {
-    final double? amountValue = double.tryParse(_amount)! + _estimatedFee;
+    final double amountValue = double.tryParse(_amount)! + _estimatedFee;
     if (amountValue == null || amountValue <= 0) return;
 
     setState(() => _isLoading = true);
@@ -521,7 +521,7 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
           border: Border.all(color: Colors.grey[100]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -677,7 +677,7 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
             borderRadius: BorderRadius.circular(32),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 offset: const Offset(0, 10),
               ),

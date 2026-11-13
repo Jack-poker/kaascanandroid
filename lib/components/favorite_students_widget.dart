@@ -18,12 +18,12 @@ class FavoriteStudentsWidget extends StatelessWidget {
   static const Color pastelBorder = Color(0xFFE0E7FF);
 
   const FavoriteStudentsWidget({
-    Key? key,
+    super.key,
     required this.students,
     required this.onAddStudent,
     required this.onStudentTap,
     this.showAddButton = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +104,7 @@ class FavoriteStudentsWidget extends StatelessWidget {
   Widget _buildAddButton(BuildContext context) {
     return GestureDetector(
       onTap: onAddStudent,
-      child: Container(
+      child: SizedBox(
         width: 80,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

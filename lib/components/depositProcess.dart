@@ -77,7 +77,7 @@ class Depositprocess extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.5),
+              color: Colors.grey.withValues(alpha: 0.5),
               spreadRadius: 2,
               blurRadius: 5,
               offset: Offset(0, 3),
@@ -117,7 +117,7 @@ class Depositprocess extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 10),
-              Container(
+              SizedBox(
                 width: 60,
                 height: 60,
                 child: ElevatedButton(

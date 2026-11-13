@@ -345,7 +345,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 style: TextStyle(
                   fontFamily: 'minigap',
                   fontSize: 13,
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -399,13 +399,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             width: 88,
             height: 88,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.chat_bubble_outline_rounded,
               size: 40,
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
             ),
           ),
           const SizedBox(height: 20),
@@ -430,7 +430,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             style: TextStyle(
               fontFamily: 'minigap-light',
               fontSize: 14,
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
             ),
           ),
         ],
@@ -464,7 +464,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               style: TextStyle(
                 fontFamily: 'minigap-light',
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.4),
+                color: Colors.white.withValues(alpha: 0.4),
               ),
             ),
           ),
@@ -494,12 +494,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   end: Alignment.bottomRight,
                 ),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: myColor.withOpacity(0.3),
+                    color: myColor.withValues(alpha: 0.3),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -516,14 +516,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
+                color: Colors.white.withValues(alpha: 0.12),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   topRight: Radius.circular(20),
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
                 ),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,7 +535,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       fontFamily: "minigap",
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.white.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -696,8 +696,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isIncoming
-                    ? greenCredit.withOpacity(0.1)
-                    : redDebit.withOpacity(0.1),
+                    ? greenCredit.withValues(alpha: 0.1)
+                    : redDebit.withValues(alpha: 0.1),
               ),
               child: Center(
                 child: Text(
@@ -733,7 +733,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.12),
+                color: statusColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -812,10 +812,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: myColor.withOpacity(0.08),
+              color: myColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 16, color: myColor.withOpacity(0.7)),
+            child: Icon(icon, size: 16, color: myColor.withValues(alpha: 0.7)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -897,17 +897,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 gradient: hasPhoto
                     ? null
                     : LinearGradient(
-                        colors: [accentColor, accentColor.withOpacity(0.7)],
+                        colors: [accentColor, accentColor.withValues(alpha: 0.7)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: accentColor.withOpacity(0.3),
+                    color: accentColor.withValues(alpha: 0.3),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -953,14 +953,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   topRight: Radius.circular(20),
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
                 ),
-                border: Border.all(color: accentColor.withOpacity(0.15)),
+                border: Border.all(color: accentColor.withValues(alpha: 0.15)),
               ),
               child: GestureDetector(
                 onTap: () => _showSendMoneySheet(studentId),
@@ -992,13 +992,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         Icon(
                           Icons.trending_up_rounded,
                           size: 14,
-                          color: Colors.white.withOpacity(0.6),
+                          color: Colors.white.withValues(alpha: 0.6),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           'Total sent: ${_formatCurrency(totalSent)} $_accountCurrency',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withValues(alpha: 0.6),
                             fontSize: 12,
                             fontFamily: 'minigap',
                             fontWeight: FontWeight.w500,
@@ -1013,13 +1013,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         Icon(
                           Icons.receipt_long_rounded,
                           size: 14,
-                          color: Colors.white.withOpacity(0.4),
+                          color: Colors.white.withValues(alpha: 0.4),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '$txCount transaction${txCount == 1 ? '' : 's'}',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withValues(alpha: 0.4),
                             fontSize: 11,
                             fontFamily: 'minigap-light',
                           ),
@@ -1052,7 +1052,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 255,
                                 255,
                                 255,
-                              ).withOpacity(0.8),
+                              ).withValues(alpha: 0.8),
                               fontSize: 11,
                               fontFamily: 'minigap',
                               fontWeight: FontWeight.w600,
@@ -1083,7 +1083,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           Text(
                             'ayakoreshejwe n`abanyeshuri',
                             style: TextStyle(
-                              color: accentColor.withOpacity(0.8),
+                              color: accentColor.withValues(alpha: 0.8),
                               fontSize: 11,
                               fontFamily: 'minigap',
                               fontWeight: FontWeight.w600,
@@ -1110,7 +1110,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   '',
                             ),
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               fontSize: 10,
                             ),
                           ),
@@ -1146,7 +1146,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
         ),
         child: InkWell(
@@ -1176,7 +1176,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         fontSize: 12,
                         fontFamily: 'minigap',
                         fontWeight: FontWeight.w500,
@@ -1185,7 +1185,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     Text(
                       timestamp,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.35),
+                        color: Colors.white.withValues(alpha: 0.35),
                         fontSize: 10,
                         fontFamily: 'minigap-light',
                       ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kaascan/provider/values_provider.dart';
 import 'package:provider/provider.dart';
 
-Widget _buildTextInput(ValuesProvider valuesProvider,String _enteredText) {
+Widget _buildTextInput(ValuesProvider valuesProvider,String enteredText) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -51,7 +51,7 @@ Widget _buildTextInput(ValuesProvider valuesProvider,String _enteredText) {
                       height: 50,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _enteredText.isNotEmpty
+                        color: enteredText.isNotEmpty
                             ? const Color.fromARGB(255, 196, 179, 255)
                             : const Color.fromARGB(
                                 255,
@@ -73,7 +73,7 @@ Widget _buildTextInput(ValuesProvider valuesProvider,String _enteredText) {
                               )
                             : Icon(
                                 Icons.send_rounded,
-                                color: _enteredText.isNotEmpty
+                                color: enteredText.isNotEmpty
                                     ? Colors.deepPurpleAccent
                                     : Colors.deepPurpleAccent.withValues(
                                         alpha: 0.4,

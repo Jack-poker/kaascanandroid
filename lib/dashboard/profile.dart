@@ -137,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
+                                  color: Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Text(
@@ -197,7 +197,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Text(
                             "KaaScan Version 3.0.0",
                             style: TextStyle(
-                              color: softGray.withOpacity(0.5),
+                              color: softGray.withValues(alpha: 0.5),
                               fontSize: 12,
                               fontFamily: "gilroy",
                               fontWeight: FontWeight.w500,
@@ -256,7 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(
                 profileData?['phone_number'] ?? "",
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontFamily: "gilroy",
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -285,13 +285,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             //     offset: const Offset(0, 10),
             //   ),
             // ],
-            border: Border.all(color: Colors.white.withOpacity(0.8), width: 3),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 3),
           ),
           child: Center(
             child: Icon(
               Icons.person_rounded,
               size: 50,
-              color: brandBlue.withOpacity(0.8),
+              color: brandBlue.withValues(alpha: 0.8),
             ),
           ),
         ),
@@ -382,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: brandBlue.withOpacity(0.06),
+                color: brandBlue.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: brandBlue, size: 20),
@@ -472,9 +472,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
-            side: BorderSide(color: brandOrange.withOpacity(0.1)),
+            side: BorderSide(color: brandOrange.withValues(alpha: 0.1)),
           ),
-          backgroundColor: brandOrange.withOpacity(0.05),
+          backgroundColor: brandOrange.withValues(alpha: 0.05),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,

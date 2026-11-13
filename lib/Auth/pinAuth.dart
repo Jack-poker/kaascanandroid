@@ -45,10 +45,10 @@ class _pinScreenState extends State<pinScreen> {
       fontWeight: FontWeight.bold,
     ),
     decoration: BoxDecoration(
-      color: Color.fromARGB(255, 255, 60, 0).withOpacity(0.05),
+      color: Color.fromARGB(255, 255, 60, 0).withValues(alpha: 0.05),
       borderRadius: BorderRadius.circular(20),
       border: Border.all(
-        color: Color.fromARGB(255, 255, 60, 0).withOpacity(0.12),
+        color: Color.fromARGB(255, 255, 60, 0).withValues(alpha: 0.12),
         width: 1.5,
       ),
     ),
@@ -111,7 +111,7 @@ class _pinScreenState extends State<pinScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                             decoration: BoxDecoration(
-                              color: Color.fromARGB(255, 155, 178, 255).withOpacity(0.05),
+                              color: Color.fromARGB(255, 155, 178, 255).withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color:myBlue,
@@ -127,7 +127,7 @@ class _pinScreenState extends State<pinScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                             decoration: BoxDecoration(
-                              color: Color.fromARGB(255, 138, 161, 255).withOpacity(0.05),
+                              color: Color.fromARGB(255, 138, 161, 255).withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: Color.fromARGB(255, 0, 94, 255),
@@ -206,9 +206,9 @@ class _pinScreenState extends State<pinScreen> {
     final currentLang = languageService.getCurrentLanguage();
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -261,7 +261,7 @@ class _pinScreenState extends State<pinScreen> {
             fallback: "Trusted by 10,000+ parents across Rwanda",
           ),
           style: TextStyle(
-            color: Colors.white.withOpacity(0.4),
+            color: Colors.white.withValues(alpha: 0.4),
             fontSize: 10,
             fontFamily: "gilroy-light",
             letterSpacing: 0.2,
@@ -283,7 +283,7 @@ class _pinScreenState extends State<pinScreen> {
                 fallback: "kaascan",
               ),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 11,
                 fontFamily: "gilroy-light",
                 fontWeight: FontWeight.w600,
@@ -315,8 +315,8 @@ class _pinScreenState extends State<pinScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        border: Border.all(color: Colors.white.withOpacity(0.15)),
+        color: Colors.white.withValues(alpha: 0.05),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -416,7 +416,7 @@ class _pinScreenState extends State<pinScreen> {
               fallback: "Ntabwo wakiriye kode?",
             ),
             style: TextStyle(
-              color: myColor.withOpacity(0.7),
+              color: myColor.withValues(alpha: 0.7),
               fontFamily: "gilroy-light",
               fontSize: 14,
             ),

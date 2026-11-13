@@ -128,7 +128,7 @@ Future<void> createOrUpdateKaaScanContact(List<String> numbers) async {
       withPhoto: true,
     );
     matches = matches.where((contact) {
-      final displayName = '${contact.displayName ?? ''}'.toLowerCase();
+      final displayName = (contact.displayName ?? '').toLowerCase();
       return displayName.contains('kaascan');
     }).toList();
   } catch (e) {
@@ -151,7 +151,7 @@ Future<void> createOrUpdateKaaScanContact(List<String> numbers) async {
     }
   }
 
-  if (contact.id == null || contact.id!.isEmpty) {
+  if (contact.id.isEmpty) {
     await FlutterContacts.insertContact(contact);
   } else {
     await contact.update();
@@ -220,7 +220,7 @@ Future<String?> retrieveAndroidId() async {
   try {
     var tempStorage = await SharedPreferences.getInstance();
 
-    return await tempStorage.getString('device_id');
+    return tempStorage.getString('device_id');
   } catch (e) {
     print("Error retrieving Android ID: $e");
     return null;
@@ -356,7 +356,7 @@ void main() {
 }
 
 class MyApp extends StatefulWidget {
-  MyApp({super.key});
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -489,7 +489,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  bool _contactPromptShown = false;
+  final bool _contactPromptShown = false;
 
   void _maybeShowContactPermissionPrompt() async {
     if (!Platform.isAndroid) return;
@@ -543,7 +543,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     Container(
                       padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: myColor.withOpacity(0.1),
+                        color: myColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -633,8 +633,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                                       Duration(milliseconds: 1000),
                                       () {
                                         if (mounted &&
-                                            Navigator.canPop(context))
+                                            Navigator.canPop(context)) {
                                           Navigator.of(context).pop();
+                                        }
                                       },
                                     );
                                   }
@@ -698,7 +699,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title});
 
   final String title;
 

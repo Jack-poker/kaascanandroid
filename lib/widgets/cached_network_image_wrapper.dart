@@ -44,7 +44,7 @@ class CachedNetworkImageWrapper extends StatelessWidget {
       if (url.trim().isEmpty) return;
       final provider = CachedNetworkImageProvider(url);
       // ignore: deprecated_member_use
-      await provider.resolve(const ImageConfiguration());
+      provider.resolve(const ImageConfiguration());
     } catch (_) {
       // Deliberately silent: priming the cache should never surface errors.
     }

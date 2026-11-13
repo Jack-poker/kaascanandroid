@@ -26,8 +26,7 @@ const Color warningYellow = Color.fromARGB(255, 255, 60, 0);
 class AddStudentDialog extends StatefulWidget {
   final Color accentColor;
 
-  const AddStudentDialog({Key? key, required this.accentColor})
-    : super(key: key);
+  const AddStudentDialog({super.key, required this.accentColor});
 
   @override
   _AddStudentDialogState createState() => _AddStudentDialogState();
@@ -99,7 +98,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       "Notice", // Title of the snackbar
       msg, // Message content
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.black.withOpacity(0.7),
+      backgroundColor: Colors.black.withValues(alpha: 0.7),
       colorText: Colors.white,
       margin: EdgeInsets.all(12),
       borderRadius: 10,
@@ -221,7 +220,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 22,
               offset: const Offset(0, 10),
             ),
@@ -282,8 +281,8 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: _resultIsError
-            ? warningYellow.withOpacity(0.15)
-            : successGreen.withOpacity(0.2),
+            ? warningYellow.withValues(alpha: 0.15)
+            : successGreen.withValues(alpha: 0.2),
         border: Border.all(
           color: _resultIsError ? warningYellow : successGreen,
         ),
@@ -320,7 +319,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(Icons.add_box, color: Colors.white, size: 30),
@@ -344,7 +343,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                     'Guiding you through every step for peace of mind.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontFamily: "gilroy-light",
                     ),
                   ),
@@ -376,7 +375,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                   shape: BoxShape.circle,
                   color: completed || isActive
                       ? Colors.white
-                      : Colors.white.withOpacity(0.4),
+                      : Colors.white.withValues(alpha: 0.4),
                 ),
                 child: Center(
                   child: Icon(
@@ -389,7 +388,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                             255,
                             255,
                             255,
-                          ).withOpacity(0.6),
+                          ).withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -398,7 +397,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                 titles[index],
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   fontFamily: "gilroy",
                 ),
               ),
@@ -457,11 +456,11 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                           border: Border.all(
                             color: isSelected
                                 ? myColor
-                                : Colors.grey.withOpacity(0.2),
+                                : Colors.grey.withValues(alpha: 0.2),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
+                              color: Colors.black.withValues(alpha: 0.04),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -582,11 +581,11 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                                 border: Border.all(
                                   color: studentSelected
                                       ? myColor
-                                      : Colors.grey.withOpacity(0.2),
+                                      : Colors.grey.withValues(alpha: 0.2),
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
+                                    color: Colors.black.withValues(alpha: 0.04),
                                     blurRadius: 6,
                                     offset: const Offset(0, 3),
                                   ),
@@ -739,7 +738,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                       'Grade ${_studentProfile!['grade'] ?? 'N/A'}',
                       style: const TextStyle(fontFamily: "gilroy-light"),
                     ),
-                    backgroundColor: lightBlue.withOpacity(0.4),
+                    backgroundColor: lightBlue.withValues(alpha: 0.4),
                     labelStyle: const TextStyle(color: deepNavy),
                   ),
                   Chip(
@@ -786,7 +785,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
         if (_step > 0)
           TextButton(
             style: ButtonStyle(
-              backgroundColor: MaterialStateProperty.all<Color>(myOpblue),
+              backgroundColor: WidgetStateProperty.all<Color>(myOpblue),
             ),
             onPressed: _isLoading ? null : () => setState(() => _step--),
             child: const Text(
@@ -822,7 +821,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
   void _showFullImageDialog(String? imageUrl) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.9),
+      barrierColor: Colors.black.withValues(alpha: 0.9),
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.zero,

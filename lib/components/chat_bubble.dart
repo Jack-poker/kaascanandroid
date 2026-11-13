@@ -297,8 +297,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
             final displayName = student.name.length > 25
                 ? '${student.name.substring(0, 22)}...'
                 : student.name;
-            responseText = responseText +
-                '\n\nKanda "$actionWord" urebe amafoto ya $displayName hanyuma uhuzwe na konti yawe.';
+            responseText = '$responseText\n\nKanda "$actionWord" urebe amafoto ya $displayName hanyuma uhuzwe na konti yawe.';
           }
         }
 
@@ -367,8 +366,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
               final displayName = student.name.length > 25
                   ? '${student.name.substring(0, 22)}...'
                   : student.name;
-              responseText = responseText +
-                  '\n\nKanda "$actionWord" urebe amafoto ya $displayName hanyuma uhuzwe na konti yawe.';
+              responseText = '$responseText\n\nKanda "$actionWord" urebe amafoto ya $displayName hanyuma uhuzwe na konti yawe.';
             }
           }
 
@@ -582,7 +580,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                           )
                         : _buildTypewriterRichText(),
 
-                  // 🎯 Special: "Reba Report" chip after typewriter completes
+                  //  Special: "Reba Report" chip after typewriter completes
                   if (_hasRebaToken && _typewriterComplete)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
@@ -1674,7 +1672,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: Colors.deepPurpleAccent,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color.fromARGB(31, 209, 193, 255)!),
+            border: Border.all(color: const Color.fromARGB(31, 209, 193, 255)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1913,7 +1911,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
             _buildSpansWithActionWord(
               text.substring(lastEnd, link.start),
               textStyle,
-              actionWord!,
+              actionWord,
               actionWordStyle,
               actionMessage,
             ),
@@ -1968,7 +1966,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           _buildSpansWithActionWord(
             remaining,
             textStyle,
-            actionWord!,
+            actionWord,
             actionWordStyle,
             actionMessage,
           ),

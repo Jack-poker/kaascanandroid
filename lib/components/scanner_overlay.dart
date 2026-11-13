@@ -37,7 +37,9 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
   void initState() {
     super.initState();
     // Pre-fill a few
-    for (int i = 0; i < 3; i++) _addMessage();
+    for (int i = 0; i < 3; i++) {
+      _addMessage();
+    }
 
     // Add messages periodically like a busy chat
     _timer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -68,7 +70,7 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
       _messages.insert(0, OverlayMessage(
         text: "[$user]: $action <$id>",
         color: color,
-        userColor: color == Colors.white.withOpacity(0.9) ? Colors.greenAccent : color,
+        userColor: color == Colors.white.withValues(alpha: 0.9) ? Colors.greenAccent : color,
       ));
 
       if (_messages.length > 20) {

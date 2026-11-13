@@ -1,7 +1,7 @@
 bool isProduction = true; // be carefully or you waste time !
 String get Base_Url => isProduction
     ? "https://api.v3.kaascan.com" // this is set for production ready
-    : "http://localhost:8000"; // for development and testing purposes only
+    : "http://192.168.1.134:8000"; // for development and testing purposes only
 
 
 String get Ws_Url => "wss://api.v3.kaascan.com";

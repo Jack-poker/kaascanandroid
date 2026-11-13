@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
 // Shop transfer removed
-import 'package:lottie/lottie.dart';
+// import 'package:lottie/lottie.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 
 bool _appLoading = true;
@@ -10,9 +10,9 @@ Color myWhite = Colors.white;
 Color myOpblue = const Color.fromARGB(179, 137, 160, 255);
 final backgroundColor = WidgetStateColor.resolveWith((states) {
   if (states.contains(WidgetState.pressed)) {
-    return myColor.withOpacity(0.8);
+    return myColor.withValues(alpha: 0.8);
   } else if (states.contains(WidgetState.hovered)) {
-    return myColor.withOpacity(0.9);
+    return myColor.withValues(alpha: 0.9);
   } else if (states.contains(WidgetState.disabled)) {
     return Colors.grey;
   } else if (states.contains(WidgetState.focused)) {
@@ -57,7 +57,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [myWhite, Color(0xFFF8F9FF), Color(0xFFEEF2FF)],
+            colors: [myWhite, Color.fromARGB(255, 255, 98, 0), Color(0xFFEEF2FF)],
           ),
         ),
         child: SafeArea(
@@ -121,12 +121,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                 child: Text(
                                   "Kohereza amafaranga ku mwana wawe ku ishuri byoroshye kandi vuba!",
                                   style: TextStyle(
-                                    color: const Color.fromARGB(
-                                      255,
-                                      0,
-                                      81,
-                                      255,
-                                    ),
+                                    color: const Color.fromRGBO(247, 247, 249, 1),
                                     fontSize: subtitleFontSize.clamp(
                                       14.0,
                                       18.0,
@@ -139,9 +134,15 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                 ),
                               ),
                               // SizedBox(height: size.height * 0.05),
-                              Lottie.asset(
-                                'assets/animations/send_money.json',
-                                fit: BoxFit.cover,
+                              // Lottie.asset(
+                                //   'assets/animations/send_money.json',
+                                //   fit: BoxFit.cover,
+                                // ),
+                              Image.asset(
+                                'assets/m_p.png',
+                                fit: BoxFit.fill,
+                                width: 350,
+                                height:400,
                               ),
                               SizedBox(height: size.height * 0.05),
 
@@ -214,7 +215,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                               Text(
                                 "version 3.0.0",
                                 style: TextStyle(
-                                  color: myColor.withOpacity(0.5),
+                                  color: myColor.withValues(alpha: 0.5),
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                   fontFamily: "gilroy-light",

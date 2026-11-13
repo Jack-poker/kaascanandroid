@@ -48,7 +48,7 @@ final api_Call = Dio(BaseOptions(
   ),
 );
 
-final base_Url = "$Base_Url";
+final base_Url = Base_Url;
 final app = backendClient();
 
 class backendClient {
@@ -111,11 +111,11 @@ class backendClient {
     String? name,
   }) async {
     var tempStorage = await SharedPreferences.getInstance();
-    var device_id =
-        await tempStorage.getString('device_id') ?? "unknown_device";
-    var kcn_token = await tempStorage.getString('kcn_token');
-    if (kcn_token == null || kcn_token.isEmpty) {
-      kcn_token = await kaascan_sdk().kcnToken();
+    var deviceId =
+        tempStorage.getString('device_id') ?? "unknown_device";
+    var kcnToken = tempStorage.getString('kcn_token');
+    if (kcnToken == null || kcnToken.isEmpty) {
+      kcnToken = await kaascan_sdk().kcnToken();
     }
     var cToken = await csrfToken();
     var token = cToken.data['csrf_token'];
@@ -129,8 +129,8 @@ class backendClient {
         data: {
           "phone_number": phonenumber.toString(),
           "csrf_token": token,
-          'device_id': device_id,
-          'kcn_token': kcn_token,
+          'device_id': deviceId,
+          'kcn_token': kcnToken,
           'role': role,
           'name': name,
         },
@@ -238,14 +238,14 @@ Future<Response> Login(
   }
 }
 
-  Future<Response> studentResetPin(xtoken, student_id, new_pin) async {
+  Future<Response> studentResetPin(xtoken, studentId, newPin) async {
     return _safeRequest(
       () => api_Call.post(
         "$base_Url/student/reset-pin",
         options: Options(headers: {"x-csrf-token": "$xtoken"}),
         data: {
-          "student_id": student_id,
-          "new_pin": new_pin,
+          "student_id": studentId,
+          "new_pin": newPin,
           "csrf_token": xtoken,
         },
       ),
@@ -548,10 +548,10 @@ Future<Response> Login(
     );
   }
 
-  Future<Response> DeleteStudent(String student_id, String token) async {
+  Future<Response> DeleteStudent(String studentId, String token) async {
     return _safeRequest(
       () => api_Call.delete(
-        "$base_Url/students/$student_id",
+        "$base_Url/students/$studentId",
         options: Options(headers: {"authorization": "Bearer $token"}),
       ),
       "[FAIL] DELETE STUDENT FAIL",
@@ -561,11 +561,11 @@ Future<Response> Login(
   Future<Response> LinkStudent(
     token,
     xtoken,
-    parent_id,
-    student_name,
-    photo_url,
-    school_name,
-    student_pin,
+    parentId,
+    studentName,
+    photoUrl,
+    schoolName,
+    studentPin,
     grade,
   ) async {
     return _safeRequest(
@@ -573,11 +573,11 @@ Future<Response> Login(
         "$base_Url/register/student",
         options: Options(headers: {"Authorization": "Bearer $token"}),
         data: {
-          "parent_id": parent_id,
-          "student_name": student_name,
-          "student_photo_url": photo_url,
-          "school_name": school_name,
-          "student_pin": student_pin,
+          "parent_id": parentId,
+          "student_name": studentName,
+          "student_photo_url": photoUrl,
+          "school_name": schoolName,
+          "student_pin": studentPin,
           "grade": grade,
           "csrf_token": xtoken,
         },

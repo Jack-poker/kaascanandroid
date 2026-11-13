@@ -5,7 +5,7 @@ import '../models/language_config.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 class LanguageSelectorScreen extends StatefulWidget {
-  const LanguageSelectorScreen({Key? key}) : super(key: key);
+  const LanguageSelectorScreen({super.key});
 
   @override
   State<LanguageSelectorScreen> createState() => _LanguageSelectorScreenState();
@@ -104,7 +104,7 @@ class _LanguageSelectorScreenState extends State<LanguageSelectorScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -143,7 +143,7 @@ class _LanguageSelectorScreenState extends State<LanguageSelectorScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0022FF).withOpacity(0.1),
+                              color: const Color(0xFF0022FF).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -214,7 +214,7 @@ class _LanguageSelectorScreenState extends State<LanguageSelectorScreen> {
                         boxShadow: [
                           if (isSelected)
                             BoxShadow(
-                              color: const Color(0xFF0022FF).withOpacity(0.1),
+                              color: const Color(0xFF0022FF).withValues(alpha: 0.1),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -284,7 +284,7 @@ class _LanguageSelectorScreenState extends State<LanguageSelectorScreen> {
                         ),
                       ),
                     );
-                  }).toList(),
+                  }),
 
                 const SizedBox(height: 32),
 

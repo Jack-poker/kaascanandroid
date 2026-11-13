@@ -105,7 +105,7 @@ class kaascan_sdk {
   Future<void> subscribeToNtfy() async {
     final token = await kcnToken();
     final prefs = await SharedPreferences.getInstance();
-    final subscribedKey = '${_kcnSubscribedPrefix}$token';
+    final subscribedKey = '$_kcnSubscribedPrefix$token';
     final alreadySubscribed = prefs.getBool(subscribedKey) ?? false;
 
     if (!alreadySubscribed) {
@@ -120,28 +120,28 @@ class kaascan_sdk {
 
   /// Starts listening on the ntfy stream and subscribes to [kcntoken] topic.
   Future<void> startListening(String kcntoken) async {
-    final _ntfyPlugin = Ntfy();
+    final ntfyPlugin = Ntfy();
 
-    _ntfyPlugin.messages.listen((String messageJson) {
+    ntfyPlugin.messages.listen((String messageJson) {
       debugPrint("[*] Received ntfy message: $messageJson");
       // TODO: show local notification when app is in background
     });
 
-    await _ntfyPlugin.subscribe(_ntfyBaseUrl, kcntoken.toString());
+    await ntfyPlugin.subscribe(_ntfyBaseUrl, kcntoken.toString());
   }
 
   /// Sends the current kcn token to the automation webhook so the backend
   /// can associate it with the user's phone number.
-  Future<void> updateFcmTokenIfPhoneExists(_phone) async {
-    final phone = _phone;
-    final kcn_token = await kcnToken();
+  Future<void> updateFcmTokenIfPhoneExists(phone) async {
+ 
+    // final kcnToken = await kcnToken();
     if (phone != null) {
       try {
         const n8nWebhookUrl =
             'https://automation.kaascan.com/webhook/update/kcn';
         final body = jsonEncode({
           "phone": phone,
-          "kcn_token": kcn_token,
+          "kcn_token": kcnToken,
           "timestamp": DateTime.now().toIso8601String(),
         });
         final response = await http.post(

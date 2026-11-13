@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kaascan/onBoradingScreen.dart';
-import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:lottie/lottie.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
@@ -50,19 +49,6 @@ class _SplashscreenState extends State<Splashscreen> {
 
   @override
   Widget build(BuildContext context) {
-    const colorizeColors = [
-      Color.fromARGB(255, 255, 255, 255),
-      Color.fromARGB(255, 0, 94, 255),
-      Color.fromARGB(255, 255, 163, 59),
-      Color.fromARGB(255, 2, 155, 94),
-    ];
-
-    const colorizeTextStyle = TextStyle(
-      fontSize: 50.0,
-      fontWeight: FontWeight.w900,
-      fontFamily: 'gilroy-light',
-    );
-
     return Scaffold(
       backgroundColor: Color.fromARGB(255, 255, 60, 0),
       body: Stack(
@@ -72,33 +58,13 @@ class _SplashscreenState extends State<Splashscreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  height: 200,
-                  child: AnimatedTextKit(
-                    animatedTexts: [
-                      ColorizeAnimatedText(
-                        'Kaascan',
-                        textStyle: colorizeTextStyle,
-                        colors: colorizeColors,
-                        speed: Durations.long1,
-                      ),
-                      ColorizeAnimatedText(
-                        'Quick',
-                        textStyle: colorizeTextStyle,
-                        colors: colorizeColors,
-                        speed: Durations.long1,
-                      ),
-                      ColorizeAnimatedText(
-                        'Smart',
-                        textStyle: colorizeTextStyle,
-                        colors: colorizeColors,
-                        speed: Durations.long1,
-                      ),
-                    ],
-                    isRepeatingAnimation: true,
-                    onTap: () {
-                      print("Tap Event");
-                    },
+                Container(
+                  width: 280,
+                  height: 280,
+                  child: Image.asset(
+                    'assets/soma_logo.png',
+                    height: 200,
+                    scale: 0.5,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -144,7 +110,7 @@ class _SplashscreenState extends State<Splashscreen> {
                       fontFamily: "gilroy-light",
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1A1F36).withOpacity(0.5),
+                      color: const Color(0xFF1A1F36).withValues(alpha: 0.5),
                     ),
                   ),
                 ),

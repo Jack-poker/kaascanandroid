@@ -602,14 +602,14 @@ class _KaascanState extends State<Kaascan> {
                   height: 80,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: myColor.withOpacity(0.1),
+                    color: myColor.withValues(alpha: 0.1),
                     border: Border.all(
-                      color: myColor.withOpacity(0.3),
+                      color: myColor.withValues(alpha: 0.3),
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: myColor.withOpacity(0.2),
+                        color: myColor.withValues(alpha: 0.2),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -625,7 +625,7 @@ class _KaascanState extends State<Kaascan> {
                           errorWidget: Icon(
                             Icons.person_rounded,
                             size: 40,
-                            color: myColor.withOpacity(0.5),
+                            color: myColor.withValues(alpha: 0.5),
                           ),
                           placeholder: Center(
                             child: SizedBox(
@@ -641,7 +641,7 @@ class _KaascanState extends State<Kaascan> {
                       : Icon(
                           Icons.person_rounded,
                           size: 40,
-                          color: myColor.withOpacity(0.5),
+                          color: myColor.withValues(alpha: 0.5),
                         ),
                 ),
               ),
@@ -672,7 +672,7 @@ class _KaascanState extends State<Kaascan> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: myColor.withOpacity(0.08),
+                  color: myColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Row(
@@ -1001,9 +1001,9 @@ class _KaascanState extends State<Kaascan> {
               controller: askText,
               maxLines: 3,
               minLines: 1,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
-                color: myBlue,
+                color: myColor,
                 fontFamily: "minigap",
               ),
               decoration: InputDecoration(
@@ -1045,8 +1045,8 @@ class _KaascanState extends State<Kaascan> {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: hasText
-                            ? const Color.fromARGB(255, 210, 198, 255)
-                            : const Color.fromARGB(255, 196, 179, 255)
+                            ? Color.fromARGB(255, 255, 85, 0)
+                            : Color.fromARGB(255, 255, 85, 0)
                                 .withValues(alpha: 0.4),
                         shape: BoxShape.circle,
                       ),
@@ -1057,7 +1057,7 @@ class _KaascanState extends State<Kaascan> {
                                 height: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
-                                  color: myBlue,
+                                  color: Color.fromARGB(255, 43, 22, 11),
                                 ),
                               )
                             : SizedBox(
@@ -1103,7 +1103,7 @@ class _KaascanState extends State<Kaascan> {
                                 height: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
-                                  color: myBlue,
+                                  color: Colors.deepOrange,
                                 ),
                               )
                             : SizedBox(
@@ -1131,13 +1131,13 @@ class _KaascanState extends State<Kaascan> {
 
   Widget _buildAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: myBlue,
+        color: myColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             spreadRadius: 1,
           ),
@@ -1147,9 +1147,10 @@ class _KaascanState extends State<Kaascan> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Image.asset(
-            'assets/images/white_logo.png',
-            height: 180,
-            width: 190,
+            'assets/soma_logo_orange.png',
+     
+            height: 200,
+            width: 300,
             errorBuilder: (context, error, stackTrace) {
               return Container(
                 height: 80,
@@ -1172,15 +1173,15 @@ class _KaascanState extends State<Kaascan> {
             },
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Kaascan',
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              fontFamily: "minigap",
-            ),
-          ),
+          // const Text(
+          //   'Kaascan',
+          //   style: TextStyle(
+          //     fontSize: 30,
+          //     fontWeight: FontWeight.bold,
+          //     color: Colors.white,
+          //     fontFamily: "minigap",
+          //   ),
+          // ),
           const SizedBox(height: 4),
           Text(
             'Version 3.0',
@@ -1203,7 +1204,7 @@ class _KaascanState extends State<Kaascan> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: myBlue,
+      backgroundColor: myColor,
       body: SafeArea(
         child: Stack(
           children: [
@@ -1246,7 +1247,7 @@ class _KaascanState extends State<Kaascan> {
                                                         msg.timestamp),
                                                     message: msg.text,
                                                     timestamp: msg.timestamp,
-                                                    senderName: "kaascan",
+                                                    senderName: "somakadi AI",
                                                     avatarUrl:
                                                         "https://yt3.ggpht.com/7z4pKV9YM3c-LfNzx1cgx3OfagWqUR9uZHQwiCsc9Jrr2sqdgtOS85AstsGehJn5opnrFmuz46I=s88-c-k-c0x00ffffff-no-rj",
                                                     responseData:
@@ -1520,9 +1521,9 @@ class _KaascanState extends State<Kaascan> {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+              border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
             ),
             child: Icon(icon, color: color, size: 30),
           ),
@@ -1575,7 +1576,7 @@ Map<String, dynamic> decodeCardPayloadToMap(Uint8List b) {
   final data = Comp.decompressFromBinary(bits);
   final decoded = DataAttention(data: data);
 
-  final root = decoded.layer_2() as Map<dynamic, dynamic>;
+  final root = decoded.layer_2();
 
   final studentNames =
       root["student_data"]?["names"] as Map? ?? const {};

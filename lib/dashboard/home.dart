@@ -48,7 +48,7 @@ import 'package:get/get.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isPay;
-  HomeScreen({super.key, this.isPay = false});
+  const HomeScreen({super.key, this.isPay = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -59,9 +59,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   double accountBalance = 0.0;
   String accountCurrency = "RWF";
   List<Map<String, dynamic>> listStudent = [];
-  String _phoneNumber = "";
-  bool _balanceVisible = true;
-  bool _showNotificationCard = true;
+  final String _phoneNumber = "";
+  final bool _balanceVisible = true;
+  final bool _showNotificationCard = true;
   String _userId = ""; // New state for Real User ID
 
   late AnimationController _balanceAnimationController;
@@ -76,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _notificationFadeAnimation;
 
   final GlobalKey _addStudentKey = GlobalKey();
-  bool _tutorialShown = false;
+  final bool _tutorialShown = false;
 
   late PageController _adsPageController;
   Timer? _adsTimer;
@@ -262,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   padding: EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [successGreen.withOpacity(0.2), lightBlue],
+                      colors: [successGreen.withValues(alpha: 0.2), lightBlue],
                     ),
                     shape: BoxShape.circle,
                   ),
@@ -350,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final balance = await app.walletBalance(accountToken);
       final students = await app.studentsLinked(accountToken);
 
+   
       final profile = await app.Profile(accountToken);
 
       final profileData = profile.data['data'] ?? profile.data['profile'] ?? {};
@@ -594,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   style: TextStyle(
                     fontFamily: "gilroy-light",
                     fontSize: 16,
-                    color: myWhite.withOpacity(0.95),
+                    color: myWhite.withValues(alpha: 0.95),
                     height: 1.6,
                   ),
                   textAlign: TextAlign.center,
@@ -603,7 +604,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: myWhite.withOpacity(0.15),
+                    color: myWhite.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
@@ -628,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   style: TextStyle(
                                     fontFamily: "gilroy-light",
                                     fontSize: 12,
-                                    color: myWhite.withOpacity(0.7),
+                                    color: myWhite.withValues(alpha: 0.7),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -667,7 +668,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   style: TextStyle(
                                     fontFamily: "gilroy-light",
                                     fontSize: 12,
-                                    color: myWhite.withOpacity(0.7),
+                                    color: myWhite.withValues(alpha: 0.7),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -809,7 +810,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final readyAds = _adsController.readyAds;
       int itemCount = readyAds.length + 1;
 
-      return Container(
+      return SizedBox(
         height: 180,
         width: double.infinity,
         child: PageView.builder(
@@ -903,7 +904,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     fallback: "Safe & secure transfers",
                   ),
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontFamily: "gilroy-light",
                     fontSize: 14,
                   ),
@@ -923,7 +924,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.close, color: Colors.white, size: 16),
@@ -975,7 +976,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withOpacity(0.8),
+                          Colors.black.withValues(alpha: 0.8),
                           Colors.transparent,
                         ],
                       ),
@@ -998,7 +999,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           Text(
                             ad.subtitle!,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 12,
                               fontFamily: "gilroy-light",
                             ),
@@ -1013,7 +1014,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -1038,7 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -1272,7 +1273,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.lightGreen.withOpacity(0.1),
+                  color: Colors.lightGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: Color.fromARGB(255, 255, 255, 255)),
                 ),
@@ -1349,7 +1350,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       0,
                                       0,
                                       0,
-                                    ).withOpacity(0.08),
+                                    ).withValues(alpha: 0.08),
                                     width: 1.5,
                                   ),
                                   // boxShadow: [
@@ -1421,7 +1422,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               color: myWhite,
               shape: BoxShape.circle,
               border: Border.all(
-                color: softGray.withOpacity(0.2),
+                color: softGray.withValues(alpha: 0.2),
                 style: BorderStyle.solid,
               ),
             ),
@@ -1499,7 +1500,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
 
-                    Container(
+                    SizedBox(
                       width: 400,
                       child: Text(
                         languageService.t(
@@ -1584,7 +1585,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       // ],
                       border: Border.all(
                         color: (isNegative ? brandOrange : brandBlue)
-                            .withOpacity(0.1),
+                            .withValues(alpha: 0.1),
                         width: 1.2,
                       ),
                     ),
@@ -1673,21 +1674,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case 'completed':
       case 'success':
       case 'successful':
-        bgColor = const Color.fromARGB(255, 2, 132, 0).withOpacity(0.1);
+        bgColor = const Color.fromARGB(255, 2, 132, 0).withValues(alpha: 0.1);
         textColor = const Color.fromARGB(255, 2, 132, 0);
         break;
       case 'pending':
       case 'in progress':
       case 'processing':
-        bgColor = brandOrange.withOpacity(0.1);
+        bgColor = brandOrange.withValues(alpha: 0.1);
         textColor = brandOrange;
         break;
       case 'failed':
-        bgColor = Colors.redAccent.withOpacity(0.1);
+        bgColor = Colors.redAccent.withValues(alpha: 0.1);
         textColor = Colors.redAccent;
         break;
       default:
-        bgColor = softGray.withOpacity(0.1);
+        bgColor = softGray.withValues(alpha: 0.1);
         textColor = softGray;
     }
 
@@ -1696,7 +1697,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: textColor.withOpacity(0.1), width: 0.5),
+        border: Border.all(color: textColor.withValues(alpha: 0.1), width: 0.5),
       ),
       child: Text(
         label,
@@ -1728,7 +1729,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               width: 50,
               height: 5,
               decoration: BoxDecoration(
-                color: softGray.withOpacity(0.3),
+                color: softGray.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -1757,7 +1758,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               width: 50,
               height: 5,
               decoration: BoxDecoration(
-                color: softGray.withOpacity(0.3),
+                color: softGray.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -1945,6 +1946,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
 // Notifications Screen
 class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({super.key});
+
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
@@ -2092,7 +2095,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   decoration: BoxDecoration(
                     color: myWhite,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: softGray.withOpacity(0.1)),
+                    border: Border.all(color: softGray.withValues(alpha: 0.1)),
                     // boxShadow: [
                     //   BoxShadow(
                     //     color: Colors.black.withOpacity(0.03),
@@ -2108,8 +2111,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              (notif["color"] as Color).withOpacity(0.2),
-                              (notif["color"] as Color).withOpacity(0.1),
+                              (notif["color"] as Color).withValues(alpha: 0.2),
+                              (notif["color"] as Color).withValues(alpha: 0.1),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(16),
@@ -2147,7 +2150,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             Text(
                               notif["time"] as String,
                               style: TextStyle(
-                                color: softGray.withOpacity(0.7),
+                                color: softGray.withValues(alpha: 0.7),
                                 fontFamily: "gilroy",
                                 fontSize: 12,
                               ),
@@ -2171,7 +2174,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Icon(
             Icons.notifications_none_rounded,
             size: 80,
-            color: softGray.withOpacity(0.2),
+            color: softGray.withValues(alpha: 0.2),
           ),
           const SizedBox(height: 16),
           Text(
@@ -2191,6 +2194,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 // Settings Screen
 // Settings Screen
 class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -2274,20 +2279,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: myWhite,
+        backgroundColor: const Color.fromARGB(255, 180, 199, 255),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Column(
           children: [
-            Image.asset("assets/logo_.png", height: 60),
+            Image.asset("assets/soma_logo.png", height: 60),
             const SizedBox(height: 16),
-            const Text(
-              "Kaascan",
-              style: TextStyle(
-                fontFamily: "gilroy",
-                fontWeight: FontWeight.bold,
-                color: myBlue,
-              ),
-            ),
+            // const Text(
+            //   "Kaascan",
+            //   style: TextStyle(
+            //     fontFamily: "gilroy",
+            //     fontWeight: FontWeight.bold,
+            //     color: myBlue,
+            //   ),
+            // ),
           ],
         ),
         content: Column(
@@ -2410,7 +2415,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Switch(
                   value: biometricsEnabled,
                   onChanged: _updateBiometrics,
-                  activeColor: Colors.lightGreen,
+                  activeThumbColor: Colors.lightGreen,
                 ),
               ),
             ],
@@ -2435,7 +2440,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Switch(
                   value: notificationsEnabled,
                   onChanged: _updateNotification,
-                  activeColor: Colors.lightGreen,
+                  activeThumbColor: Colors.lightGreen,
                 ),
               ),
               _buildSettingItem(
@@ -2469,7 +2474,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _showFeatured = value;
                     });
                   },
-                  activeColor: Colors.lightGreen,
+                  activeThumbColor: Colors.lightGreen,
                 ),
               ),
             ],
@@ -2512,7 +2517,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               elevation: 0,
-              side: BorderSide(color: Colors.redAccent.withOpacity(0.2)),
+              side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.2)),
             ),
             icon: const Icon(Icons.logout_rounded),
             label: Text(
@@ -2557,7 +2562,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           decoration: BoxDecoration(
             color: myWhite,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: softGray.withOpacity(0.1)),
+            border: Border.all(color: softGray.withValues(alpha: 0.1)),
           ),
           child: Column(children: items),
         ),
@@ -2613,7 +2618,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 class DashboardNav extends StatefulWidget {
   final isDeleteStudent;
-  DashboardNav({super.key, this.isDeleteStudent});
+  const DashboardNav({super.key, this.isDeleteStudent});
 
   @override
   State<DashboardNav> createState() => _DashboardNavState();
@@ -2644,7 +2649,7 @@ class _DashboardNavState extends State<DashboardNav> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: myBlue,
+      backgroundColor: myColor,
       body: currentIndex.value == 0
           ? ChangeNotifierProvider<ValuesProvider>(
               create: (_) => ValuesProvider(),

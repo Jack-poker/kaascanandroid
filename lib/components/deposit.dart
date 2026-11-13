@@ -158,7 +158,7 @@ class DepositController extends GetxController {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: myColor.withOpacity(0.1),
+              color: myColor.withValues(alpha: 0.1),
               blurRadius: 20,
               spreadRadius: 5,
               offset: const Offset(0, 8),
@@ -225,7 +225,7 @@ class DepositController extends GetxController {
                 style: TextStyle(
                   fontFamily: "gilroy",
                   fontSize: isSmallScreen ? 13 : 15,
-                  color: myColor.withOpacity(0.7),
+                  color: myColor.withValues(alpha: 0.7),
                   height: 1.5,
                 ),
               ),
@@ -408,7 +408,7 @@ class _DepositState extends State<Deposit> {
                             height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: myColor.withOpacity(0.1),
+                              color: myColor.withValues(alpha: 0.1),
                             ),
                             child: Icon(
                               Icons.account_balance_wallet,
@@ -568,7 +568,7 @@ class _DepositState extends State<Deposit> {
           border: Border.all(color: Colors.grey[100]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),

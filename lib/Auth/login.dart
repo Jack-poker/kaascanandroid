@@ -230,9 +230,9 @@ TAGS:${androidInfo.tags}
     final currentLang = languageService.getCurrentLanguage();
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
       ),
       child: Material(
         color: Colors.transparent,
@@ -299,9 +299,9 @@ TAGS:${androidInfo.tags}
   Widget _buildPhoneInput() {
     return Container(
       decoration: BoxDecoration(
-        color: myWhite.withOpacity(0.05),
+        color: myWhite.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: myWhite.withOpacity(0.1), width: 1),
+        border: Border.all(color: myWhite.withValues(alpha: 0.1), width: 1),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Material(
@@ -315,7 +315,7 @@ TAGS:${androidInfo.tags}
             hintText: languageService.t('auth.phone_number', fallback: "Nimero ya telefoni"),
             hintStyle: TextStyle(
               fontFamily: "gilroy-light",
-              color: const Color.fromARGB(255, 0, 60, 255).withOpacity(0.4),
+              color: const Color.fromARGB(255, 0, 60, 255).withValues(alpha: 0.4),
               fontSize: 16,
             ),
           ),
@@ -546,7 +546,7 @@ TAGS:${androidInfo.tags}
             'errors.login_error_message',
             fallback: "Nyamuneka reba neza nimero yawe ya telefoni cyangwa ugenzure ko ufite internet ikora neza.",
           ),
-          style: TextStyle(color: myWhite.withOpacity(0.7), fontFamily: "gilroy-light"),
+          style: TextStyle(color: myWhite.withValues(alpha: 0.7), fontFamily: "gilroy-light"),
         ),
         actions: [
           TextButton(
@@ -565,7 +565,7 @@ TAGS:${androidInfo.tags}
         Text(
           languageService.t('auth.no_account_yet', fallback: "Nturagira konti? "),
           style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.7),
             fontFamily: 'gilroy-light',
           ),
         ),

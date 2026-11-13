@@ -232,7 +232,7 @@ class _WithdrawPageState extends State<WithdrawPage>
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: myColor.withOpacity(0.1),
+                        color: myColor.withValues(alpha: 0.1),
                       ),
                       child: Icon(
                         Icons.account_balance_wallet,
@@ -379,7 +379,7 @@ class _WithdrawPageState extends State<WithdrawPage>
           border: Border.all(color: Colors.grey[100]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -604,7 +604,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: successGreen.withOpacity(0.2),
+                  color: successGreen.withValues(alpha: 0.2),
                   blurRadius: 30,
                   offset: Offset(0, 10),
                 ),
@@ -616,7 +616,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                 Container(
                   padding: EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: successGreen.withOpacity(0.1),
+                    color: successGreen.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -748,7 +748,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: errorColor.withOpacity(0.2),
+                  color: errorColor.withValues(alpha: 0.2),
                   blurRadius: 30,
                   offset: Offset(0, 10),
                 ),
@@ -760,7 +760,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                 Container(
                   padding: EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: errorColor.withOpacity(0.1),
+                    color: errorColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(errorIcon, color: errorColor, size: 64),
@@ -791,7 +791,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: errorColor.withOpacity(0.1),
+                      color: errorColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -890,7 +890,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: myColor.withOpacity(0.1),
+              color: myColor.withValues(alpha: 0.1),
               blurRadius: 20,
               spreadRadius: 5,
               offset: const Offset(0, 8),
@@ -958,20 +958,20 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                     decoration: InputDecoration(
                       counterText: "",
                       filled: true,
-                      fillColor: myColor.withOpacity(0.05),
+                      fillColor: myColor.withValues(alpha: 0.05),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
                           color: focusNodes[index].hasFocus
                               ? myColor
-                              : myColor.withOpacity(0.3),
+                              : myColor.withValues(alpha: 0.3),
                           width: focusNodes[index].hasFocus ? 2 : 1,
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: myColor.withOpacity(0.3),
+                          color: myColor.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -1019,7 +1019,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 4,
-                        shadowColor: myColor.withOpacity(0.3),
+                        shadowColor: myColor.withValues(alpha: 0.3),
                       ),
                       onPressed: otpDigits.join("").length == 4
                           ? confirmWithdraw
