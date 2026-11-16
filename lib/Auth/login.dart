@@ -18,6 +18,8 @@ const Color myColor = Color.fromARGB(255, 0, 34, 255);
 const Color myWhite = Colors.white;
 const Color myOpblue = Color.fromARGB(179, 137, 160, 255);
 const Color deepNavy = Color(0xFF1A1F36);
+// Same background as the splash loading screen
+const Color splashOrange = Color.fromARGB(255, 255, 60, 0);
 const Color softGray = Color(0xFF9CA3AF);
 const Color cloudWhite = Color(0xFFFAFBFC);
 const Color lightBlue = Color(0xFFE6F0FF);
@@ -141,7 +143,7 @@ TAGS:${androidInfo.tags}
   Widget build(BuildContext context) {
     if (_isChecking) {
       return Scaffold(
-        backgroundColor: deepNavy,
+        backgroundColor: splashOrange,
         body: Center(
           child: LoadingAnimationWidget.discreteCircle(
             color: myColor,
@@ -152,65 +154,72 @@ TAGS:${androidInfo.tags}
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: splashOrange,
       body: Stack(
         children: [
           // Background
           Container(
             width: double.infinity,
             height: double.infinity,
-            decoration: const BoxDecoration(color: myBlue),
+            decoration: const BoxDecoration(color: splashOrange),
           ),
 
           // Main Content
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 40),
-                  _buildHeader(),
-                  const SizedBox(height: 40),
-                  _buildGlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          languageService.t('auth.login', fallback: "Injira"),
-                          style: const TextStyle(
-                            color: myColor,
-                            fontSize: 32,
-                            fontFamily: "gilroy",
-                            letterSpacing: -0.5,
-                          ),
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ConstrainedBox(
+                  // Fill the screen height so the content sits centered
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 40),
+                      _buildHeader(),
+                      const SizedBox(height: 40),
+                      _buildGlassCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              languageService.t('auth.login', fallback: "Injira"),
+                              style: const TextStyle(
+                                color: myColor,
+                                fontSize: 32,
+                                fontFamily: "gilroy",
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              languageService.t(
+                                'auth.login_subtitle',
+                                fallback: "Ishyiramo nimero yawe kugira ngo ukomeze",
+                              ),
+                              style: const TextStyle(
+                                color: myColor,
+                                fontSize: 14,
+                                fontFamily: "gilroy-light",
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            _buildPhoneInput(),
+                            const SizedBox(height: 24),
+                            _buildPrivacyInfo(),
+                            const SizedBox(height: 32),
+                            _buildLoginButton(),
+                            const SizedBox(height: 16),
+                            _buildForgotPinButton(),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          languageService.t(
-                            'auth.login_subtitle',
-                            fallback: "Ishyiramo nimero yawe kugira ngo ukomeze",
-                          ),
-                          style: const TextStyle(
-                            color: myColor,
-                            fontSize: 14,
-                            fontFamily: "gilroy-light",
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        _buildPhoneInput(),
-                        const SizedBox(height: 24),
-                        _buildPrivacyInfo(),
-                        const SizedBox(height: 32),
-                        _buildLoginButton(),
-                        const SizedBox(height: 16),
-                        _buildForgotPinButton(),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildFooterLink(),
+                      const SizedBox(height: 20),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  _buildFooterLink(),
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
             ),
           ),
@@ -228,43 +237,75 @@ TAGS:${androidInfo.tags}
 
   Widget _buildLanguageSelector() {
     final currentLang = languageService.getCurrentLanguage();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const LanguageSelectorScreen()),
-            );
-            if (result == true && mounted) setState(() {});
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  currentLang?.flagEmoji ?? '🇷🇼',
-                  style: const TextStyle(fontSize: 18),
+    return Semantics(
+      button: true,
+      label: 'Change language',
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LanguageSelectorScreen(),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  currentLang?.code.toUpperCase() ?? 'RW',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontFamily: "gilroy-light",
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+              );
+              if (result == true && mounted) {
+                setState(() {}); // Refresh UI
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(5, 5, 10, 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Flag badge
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEEF2FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      currentLang?.flagEmoji ?? '🇷🇼',
+                      style: const TextStyle(fontSize: 16, height: 1.1),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    currentLang?.code.toUpperCase() ?? 'RW',
+                    style: const TextStyle(
+                      color: Color.fromARGB(255, 0, 34, 255),
+                      fontFamily: "gilroy",
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Color.fromARGB(255, 0, 34, 255),
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -278,7 +319,7 @@ TAGS:${androidInfo.tags}
       children: [
         Hero(
           tag: 'logo',
-          child: Image.asset("assets/images/white_logo.png", scale: 3.5),
+          child: Image.asset("assets/soma_logo.png", height: 56),
         ),
       ],
     );
@@ -374,26 +415,31 @@ TAGS:${androidInfo.tags}
       child: ElevatedButton(
         onPressed: _handleLogin,
         style: ElevatedButton.styleFrom(
-          backgroundColor: myBlue,
+          // Same look as the onboarding "Gukomeza" button
+          backgroundColor: myColor,
           foregroundColor: myWhite,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            const Icon(Icons.arrow_forward_ios, color: myWhite, size: 24),
+            const SizedBox(width: 8),
             Text(
               languageService.t('auth.login', fallback: "Injira"),
               style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
+                color: myWhite,
+                fontSize: 16,
                 fontFamily: "gilroy-light",
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(width: 12),
-            const Icon(Icons.arrow_forward_rounded, size: 20),
           ],
         ),
       ),
@@ -579,8 +625,10 @@ TAGS:${androidInfo.tags}
           child: Text(
             languageService.t('auth.register_here', fallback: "Iyandikishe hano"),
             style: const TextStyle(
-              color: Color.fromARGB(255, 255, 153, 0),
+              color: Colors.white,
               fontWeight: FontWeight.bold,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white,
               fontFamily: "gilroy-light",
             ),
           ),

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:kaascan/components/agentic_ui.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 import 'package:kaascan/main.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -35,6 +36,13 @@ class ChatBubble extends StatefulWidget {
   final void Function(String photoUrl, String studentName)?
       onActiveStudentChanged;
 
+  /// Called when the parent taps something in the agentic UI that should be
+  /// sent as their next prompt (a suggestion chip, a child, an amount).
+  final AgenticSend? onUiSend;
+
+  /// Called when the parent confirms a top-up card.
+  final AgenticConfirmTopup? onConfirmTopup;
+
   const ChatBubble({
     super.key,
     required this.message,
@@ -47,6 +55,8 @@ class ChatBubble extends StatefulWidget {
     this.onActionTapped,
     this.onSimulateAndShow,
     this.onActiveStudentChanged,
+    this.onUiSend,
+    this.onConfirmTopup,
   });
 
   @override
@@ -485,7 +495,28 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       opacity: _fadeAnimation,
       child: SlideTransition(
         position: _slideAnimation,
-        child: _buildAiBubble(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildAiBubble(),
+            // Agentic UI sits under the bubble at full width, once the
+            // sentence has finished typing.
+            if (_typewriterComplete &&
+                AgenticBlocks.hasContent(widget.responseData))
+              AgenticBlocks(
+                blocks: widget.responseData!['ui'] is List
+                    ? widget.responseData!['ui'] as List
+                    : const [],
+                suggestions: widget.responseData!['suggestions'] is List
+                    ? widget.responseData!['suggestions'] as List
+                    : const [],
+                onSend: (message, studentId) =>
+                    widget.onUiSend?.call(message, studentId),
+                onConfirmTopup: widget.onConfirmTopup,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -541,7 +572,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 0, 72, 255),
+                color: const Color.fromARGB(255, 0, 25, 205),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   topRight: Radius.circular(20),

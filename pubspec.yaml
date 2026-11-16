@@ -8,7 +8,7 @@ dependencies:
   flutter:
     sdk: flutter
   qaad_shared:
-    path: /home/qemmanuel/Documents/kaascan/kaascanandroid/qaad_sdk
+    path: /home/quantumbytes/Documents/Qaad/qaad_sdk/
 
   cupertino_icons: ^1.0.8
   splasher: ^0.1.1

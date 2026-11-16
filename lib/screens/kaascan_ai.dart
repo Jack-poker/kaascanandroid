@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kaascan/Api/client.dart';
 import 'package:kaascan/Auth/unified_auth.dart';
+import 'package:kaascan/components/agentic_ui.dart';
 import 'package:kaascan/components/chat_bubble.dart';
 import 'package:kaascan/components/typing_indicator.dart';
 import 'package:kaascan/dashboard/home.dart'
@@ -59,6 +60,11 @@ class _KaascanState extends State<Kaascan> {
 
   /// Pending data for the linking flow (avoids fragile string parsing with URLs).
   Map<String, String>? _pendingLinkData;
+
+  /// The child the conversation is currently about. The assistant sends it
+  /// back with each answer and it is returned with the next question, so a
+  /// follow-up like "2000" is understood as "send 2000 to that child".
+  String? _focusStudentId;
 
   // --- Draggable overlay state for student image preview ---
   String? _overlayPhotoUrl;
@@ -322,6 +328,16 @@ class _KaascanState extends State<Kaascan> {
               "Muraho neza! Ndagufasha kuguhuza n'umwana wawe. Nyamuneka wandike izina ry'umunyeshuri wifuza guhuza. wambwira amazina ye",
           "response":
               "Muraho neza! Ndagufasha kuguhuza n'umwana wawe. Nyamuneka wandike izina ry'umunyeshuri wifuza guhuza. wambwira amazina ye.",
+          // Starting points, so a parent sees what the assistant can do.
+          "suggestions": [
+            {"label": "Abana banjye", "message": "Abana banjye"},
+            {"label": "Amafaranga asigaye", "message": "Amafaranga asigaye"},
+            {
+              "label": "Ohereza amafaranga",
+              "message": "Ohereza amafaranga",
+              "style": "primary",
+            },
+          ],
         });
       }
     });
@@ -422,11 +438,17 @@ class _KaascanState extends State<Kaascan> {
 
       try {
         final ask = kaascan_sdk();
-        final res = await ask.ask_kaascan(text);
+        final res = await ask.ask_kaascan(
+          text,
+          focusStudentId: _focusStudentId,
+          history: _recentHistory(provider),
+        );
 
         if (res.isEmpty) {
           provider.addAiError("Habaye ikosa. Ongera ugerageze nyuma.");
         } else {
+          final focus = res["focus_student_id"]?.toString() ?? "";
+          if (focus.isNotEmpty) _focusStudentId = focus;
           provider.addAiResponse(res);
           HapticFeedback.mediumImpact();
         }
@@ -443,6 +465,96 @@ class _KaascanState extends State<Kaascan> {
         ),
       );
       provider.updateWaitingask(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // AGENTIC UI
+  // ---------------------------------------------------------------------
+
+  /// The last few turns, oldest first, without the message being sent now.
+  List<Map<String, String>> _recentHistory(ValuesProvider provider) {
+    final all = provider.messages;
+    if (all.length <= 1) return const [];
+    final earlier = all.sublist(0, all.length - 1);
+    final recent =
+        earlier.length > 6 ? earlier.sublist(earlier.length - 6) : earlier;
+    return [
+      for (final m in recent)
+        if (m.text.trim().isNotEmpty)
+          {
+            "role": m.isUser ? "user" : "ai",
+            "text": m.text.length > 300 ? m.text.substring(0, 300) : m.text,
+          },
+    ];
+  }
+
+  /// A chip, a child or an amount was tapped: send it as the next prompt.
+  void _handleUiSend(
+    String message,
+    String? studentId,
+    ValuesProvider provider,
+  ) {
+    if (message.trim().isEmpty) return;
+    if (studentId != null && studentId.isNotEmpty) {
+      _focusStudentId = studentId;
+    }
+    _typewriteAndSend(message, provider);
+  }
+
+  /// The parent confirmed a top-up card. This goes through the same
+  /// authenticated deposit request as the app's own "send money" screen; the
+  /// parent still approves the payment on their phone with Mobile Money.
+  Future<AgenticTopupResult> _confirmTopup(Map<dynamic, dynamic> block) async {
+    final student = block['student'];
+    final studentId =
+        student is Map ? (student['student_id']?.toString() ?? '') : '';
+    final rawCharge = block['charge'];
+    final charge = rawCharge is num
+        ? rawCharge.toDouble()
+        : double.tryParse(rawCharge?.toString() ?? '') ?? 0;
+    if (studentId.isEmpty || charge <= 0) {
+      return const AgenticTopupResult(ok: false);
+    }
+
+    try {
+      final client = backendClient();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString("login_token");
+      if (token == null || token.isEmpty) {
+        return const AgenticTopupResult(ok: false);
+      }
+
+      final csrfRes = await client.csrfToken();
+      final csrfData = csrfRes.data;
+      final xtoken =
+          csrfData is Map ? (csrfData['csrf_token']?.toString() ?? '') : '';
+      if (xtoken.isEmpty) {
+        return AgenticTopupResult(
+          ok: false,
+          message:
+              csrfData is Map ? (csrfData['message']?.toString() ?? '') : '',
+        );
+      }
+
+      final res = await client.districtStudentDeposit(
+        xtoken,
+        token,
+        charge,
+        studentId,
+        "",
+      );
+      final data = res.data;
+      final ok = data is Map && data['status'] == 'success';
+      return AgenticTopupResult(
+        ok: ok,
+        message: ok
+            ? ''
+            : (data is Map ? (data['message']?.toString() ?? '') : ''),
+      );
+    } catch (e) {
+      debugPrint("[TOPUP] confirm failed: $e");
+      return const AgenticTopupResult(ok: false);
     }
   }
 
@@ -987,138 +1099,155 @@ class _KaascanState extends State<Kaascan> {
   // INPUT WIDGET
   // ---------------------------------------------------------------------
 
+  // Blue of "kadi" in the SOMAKADI logo
+  static const Color _kadiBlue = Color.fromARGB(255, 0, 25, 205);
+
   Widget _buildTextInput(ValuesProvider valuesProvider) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
+      // Transparent: the input sits directly on the orange background
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
+          // Text field
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white,
+                width: 1.4,
+              ),
+            ),
             child: TextField(
               controller: askText,
               maxLines: 3,
               minLines: 1,
-              style: TextStyle(
-                fontSize: 15,
-                color: myColor,
+              cursorColor: Colors.white,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color.fromARGB(255, 157, 157, 160),
                 fontFamily: "minigap",
               ),
               decoration: InputDecoration(
                 hintText: 'Umunyeshuri yitwa gute...',
                 hintStyle: TextStyle(
-                  color: myOpblue,
-                  fontSize: 14,
+                  color: const Color.fromARGB(255, 3, 16, 151).withValues(alpha: 0.8),
+                  fontSize: 15,
                   fontFamily: "minigap",
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onChanged: (value) {
                 setState(() {});
               },
             ),
           ),
-          Row(
-            children: [
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: () async {
-                  debugPrint('▶️ scan started');
-                  final bytes = await _startReportScan(context);
-                  debugPrint('◀️ scan returned: $bytes');
-                  if (!context.mounted) return;
-                  if (bytes == null) {
-                    debugPrint('❌ bytes is null');
-                    return;
-                  }
-                  debugPrint('✅ got ${bytes.length} bytes');
-                },
-                child: Consumer<ValuesProvider>(
-                  builder: (context, Wvalue, child) {
-                    final hasText = askText.text.isNotEmpty;
-                    return Container(
-                      width: 50,
-                      height: 50,
-                      padding: const EdgeInsets.all(10),
+          const SizedBox(height: 12),
+
+          // Actions: scan on the left, send on the right
+          Consumer<ValuesProvider>(
+            builder: (context, Wvalue, child) {
+              final hasText = askText.text.trim().isNotEmpty;
+              final waiting = Wvalue.waiting_ask;
+              return Row(
+                children: [
+                  // Scan report
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(100),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () async {
+                        debugPrint('▶️ scan started');
+                        final bytes = await _startReportScan(context);
+                        debugPrint('◀️ scan returned: $bytes');
+                        if (!context.mounted) return;
+                        if (bytes == null) {
+                          debugPrint('❌ bytes is null');
+                          return;
+                        }
+                        debugPrint('✅ got ${bytes.length} bytes');
+                      },
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: _kadiBlue,
+                              size: 22,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Scan',
+                              style: TextStyle(
+                                color: _kadiBlue,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: "minigap",
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  // Send
+                  Semantics(
+                    button: true,
+                    label: 'Send',
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: hasText
-                            ? Color.fromARGB(255, 255, 85, 0)
-                            : Color.fromARGB(255, 255, 85, 0)
-                                .withValues(alpha: 0.4),
+                        color: Colors.white.withValues(
+                          alpha: hasText || waiting ? 1 : 0.55,
+                        ),
                         shape: BoxShape.circle,
                       ),
-                      child: Center(
-                        child: Wvalue.waiting_ask
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Color.fromARGB(255, 43, 22, 11),
-                                ),
-                              )
-                            : SizedBox(
-                                width: 80,
-                                child: Image.asset(
-                                  "assets/scanner-svgrepo-com.png",
-                                  fit: BoxFit.fill,
-                                ),
-                              ),
+                      child: Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () {
+                            if (askText.text.isEmpty) return;
+                            _handleSendMessage(valuesProvider);
+                          },
+                          child: Center(
+                            child: waiting
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: _kadiBlue,
+                                    ),
+                                  )
+                                : Image.asset(
+                                    "assets/send.png",
+                                    width: 28,
+                                    height: 28,
+                                    fit: BoxFit.contain,
+                                  ),
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: () {
-                  if (askText.text.isEmpty) return;
-                  _handleSendMessage(valuesProvider);
-                },
-                child: Consumer<ValuesProvider>(
-                  builder: (context, Wvalue, child) {
-                    final hasText = askText.text.isNotEmpty;
-                    return Container(
-                      width: 50,
-                      height: 50,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: hasText
-                            ? const Color.fromARGB(255, 196, 179, 255)
-                            : const Color.fromARGB(255, 196, 179, 255)
-                                .withValues(alpha: 0.4),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Wvalue.waiting_ask
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.deepOrange,
-                                ),
-                              )
-                            : SizedBox(
-                                width: 80,
-                                child: Image.asset(
-                                  "assets/send.png",
-                                  fit: BoxFit.fill,
-                                ),
-                              ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1129,28 +1258,22 @@ class _KaascanState extends State<Kaascan> {
   // APP BAR
   // ---------------------------------------------------------------------
 
+  // Same background as the splash, onboarding and auth screens
+  static const Color _splashOrange = Color.fromARGB(255, 255, 60, 0);
+
   Widget _buildAppBar() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: myColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 4,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
+      decoration: const BoxDecoration(color: _splashOrange),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Image.asset(
-            'assets/soma_logo_orange.png',
-     
-            height: 200,
-            width: 300,
+            'assets/Glossy 3D White C Emblem.png',
+            height: 180,
+            width: 270,
+            fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
               return Container(
                 height: 80,
@@ -1204,7 +1327,7 @@ class _KaascanState extends State<Kaascan> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: myColor,
+      backgroundColor: _splashOrange,
       body: SafeArea(
         child: Stack(
           children: [
@@ -1224,13 +1347,18 @@ class _KaascanState extends State<Kaascan> {
                             _buildTextInput(value),
                             const SizedBox(height: 20),
                             SizedBox(
-                              height: 300,
+                              // Tall enough for the assistant's cards; the
+                              // answer scrolls inside when it is longer.
+                              height: math.max(
+                                300.0,
+                                MediaQuery.of(context).size.height * 0.52,
+                              ),
                               child: Consumer<ValuesProvider>(
                                 builder: (context, value, child) {
                                   return value.waiting_ask
                                       ? const Center(
                                           child: TypingIndicator(
-                                              senderName: 'Kaascan'),
+                                              senderName: 'Somakadi AI'),
                                         )
                                       : value.messages.isNotEmpty
                                           ? ListView(
@@ -1276,6 +1404,15 @@ class _KaascanState extends State<Kaascan> {
                                                       photoUrl,
                                                       name,
                                                     ),
+                                                    onUiSend:
+                                                        (message, studentId) =>
+                                                            _handleUiSend(
+                                                      message,
+                                                      studentId,
+                                                      value,
+                                                    ),
+                                                    onConfirmTopup:
+                                                        _confirmTopup,
                                                   ),
                                               ],
                                             )

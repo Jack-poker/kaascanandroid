@@ -60,92 +60,104 @@ class _pinScreenState extends State<pinScreen> {
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: const Color.fromARGB(255, 194, 202, 252),
+      backgroundColor: splashOrange,
       body: Stack(
         children: [
           _buildBackground(),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 40),
-                  _buildHeader(),
-                  const SizedBox(height: 40),
-                  _buildGlassIsland(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Center the content in the space left above the keyboard
+                final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+                final visibleHeight = (constraints.maxHeight - keyboardInset)
+                    .clamp(0.0, constraints.maxHeight);
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(24, 0, 24, keyboardInset),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: visibleHeight),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          widget.isReset ? "Reset PIN" : "Genzura kode",
-                          style: const TextStyle(
-                            color: myColor,
-                            fontSize: 28,
-                            fontFamily: "gilroy-light",
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          widget.isReset
-                              ? languageService.t(
-                                  'auth.reset_otp_subtitle',
-                                  fallback:
-                                      "First get OTP to reset your PIN. Enter the code sent to: ${widget.phonenumber}",
-                                )
-                              : "Injiza kode yoherejwe kuri nimero yawe ya telefoni: ${widget.phonenumber}",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: myColor,
-                            fontSize: 14,
-                            fontFamily: "gilroy-light",
-                          ),
-                        ),
                         const SizedBox(height: 40),
-                        Pinput(
-                          defaultPinTheme: defaultPinTheme.copyWith(
-                            textStyle: const TextStyle(
-                              fontSize: 28,
-                              color: myColor,
-                              fontFamily: "gilroy-light",
-                              fontWeight: FontWeight.bold,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Color.fromARGB(255, 155, 178, 255).withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color:myBlue,
-                                width: 1,
-                              ),
-                            ),
-                          ),
-                          focusedPinTheme: defaultPinTheme.copyWith(
-                            textStyle: const TextStyle(
-                              fontSize: 28,
-                              color: myColor,
-                              fontFamily: "gilroy-light",
-                              fontWeight: FontWeight.bold,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Color.fromARGB(255, 138, 161, 255).withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Color.fromARGB(255, 0, 94, 255),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                          onCompleted: (pin) async {
-                            _handleVerify(pin);
-                          },
-                        ),
+                        _buildHeader(),
                         const SizedBox(height: 40),
-                        _buildResendButton(),
+                        _buildGlassIsland(
+                          child: Column(
+                            children: [
+                              Text(
+                                widget.isReset ? "Reset PIN" : "Genzura kode",
+                                style: const TextStyle(
+                                  color: myColor,
+                                  fontSize: 28,
+                                  fontFamily: "gilroy-light",
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                widget.isReset
+                                    ? languageService.t(
+                                        'auth.reset_otp_subtitle',
+                                        fallback:
+                                            "First get OTP to reset your PIN. Enter the code sent to: ${widget.phonenumber}",
+                                      )
+                                    : "Injiza kode yoherejwe kuri nimero yawe ya telefoni: ${widget.phonenumber}",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: myColor,
+                                  fontSize: 14,
+                                  fontFamily: "gilroy-light",
+                                ),
+                              ),
+                              const SizedBox(height: 40),
+                              Pinput(
+                                defaultPinTheme: defaultPinTheme.copyWith(
+                                  textStyle: const TextStyle(
+                                    fontSize: 28,
+                                    color: myColor,
+                                    fontFamily: "gilroy-light",
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Color.fromARGB(255, 155, 178, 255).withValues(alpha: 0.05),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color:myBlue,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                focusedPinTheme: defaultPinTheme.copyWith(
+                                  textStyle: const TextStyle(
+                                    fontSize: 28,
+                                    color: myColor,
+                                    fontFamily: "gilroy-light",
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Color.fromARGB(255, 138, 161, 255).withValues(alpha: 0.05),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Color.fromARGB(255, 0, 94, 255),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                onCompleted: (pin) async {
+                                  _handleVerify(pin);
+                                },
+                              ),
+                              const SizedBox(height: 40),
+                              _buildResendButton(),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
           Positioned(
@@ -204,47 +216,75 @@ class _pinScreenState extends State<pinScreen> {
 
   Widget _buildLanguageSelector() {
     final currentLang = languageService.getCurrentLanguage();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const LanguageSelectorScreen(),
-              ),
-            );
-            if (result == true && mounted) {
-              setState(() {}); // Refresh UI
-            }
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  currentLang?.flagEmoji ?? '🇷🇼',
-                  style: const TextStyle(fontSize: 18),
+    return Semantics(
+      button: true,
+      label: 'Change language',
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LanguageSelectorScreen(),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  currentLang?.code.toUpperCase() ?? 'RW',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontFamily: "gilroy-light",
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+              );
+              if (result == true && mounted) {
+                setState(() {}); // Refresh UI
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(5, 5, 10, 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Flag badge
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEEF2FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      currentLang?.flagEmoji ?? '🇷🇼',
+                      style: const TextStyle(fontSize: 16, height: 1.1),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    currentLang?.code.toUpperCase() ?? 'RW',
+                    style: const TextStyle(
+                      color: Color.fromARGB(255, 0, 34, 255),
+                      fontFamily: "gilroy",
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Color.fromARGB(255, 0, 34, 255),
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -261,7 +301,7 @@ class _pinScreenState extends State<pinScreen> {
             fallback: "Trusted by 10,000+ parents across Rwanda",
           ),
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
+            color: Colors.white.withValues(alpha: 0.85),
             fontSize: 10,
             fontFamily: "gilroy-light",
             letterSpacing: 0.2,
@@ -335,7 +375,7 @@ class _pinScreenState extends State<pinScreen> {
     return Container(
       width: double.infinity,
       height: double.infinity,
-      decoration: const BoxDecoration(color:myBlue),
+      decoration: const BoxDecoration(color: splashOrange),
       child: Stack(
         children: [
           // Positioned(
@@ -367,7 +407,7 @@ class _pinScreenState extends State<pinScreen> {
       children: [
         Hero(
           tag: 'logo',
-          child: Image.asset("assets/images/white_logo.png", scale: 3.5),
+          child: Image.asset("assets/soma_logo.png", height: 56),
         ),
         // const SizedBox(height: 20),
         // Text(

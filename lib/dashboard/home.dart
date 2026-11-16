@@ -2649,7 +2649,9 @@ class _DashboardNavState extends State<DashboardNav> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: myColor,
+      // The strip around the nav bar follows the current tab: orange on the
+      // AI home tab, blue on the other tabs.
+      backgroundColor: currentIndex.value == 0 ? somaOrange : myColor,
       body: currentIndex.value == 0
           ? ChangeNotifierProvider<ValuesProvider>(
               create: (_) => ValuesProvider(),
@@ -2709,6 +2711,8 @@ class _DashboardNavState extends State<DashboardNav> {
 
 // Global Color constants (Unifying with the new palette)
 const Color navIconColor = Color(0xFFC6F400);
+// Same background as the splash, onboarding and auth screens
+const Color somaOrange = Color.fromARGB(255, 255, 60, 0);
 const Color myColor = Color.fromARGB(255, 0, 34, 255); // Lime Green
 const Color myWhite = Colors.white;
 const Color myBlack = Color(0xFF121212); // Deep Black

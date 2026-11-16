@@ -8,6 +8,8 @@ import 'package:kaascan/Api/client.dart';
 import "package:flutter/cupertino.dart" hide Table;
 import 'package:device_info_plus/device_info_plus.dart';
 import "package:kaascan/Api/config.dart";
+import "package:dio/dio.dart" show Options;
+import "package:kaascan/services/language_service.dart";
 import "package:ntfy/ntfy.dart";
 import "package:shared_preferences/shared_preferences.dart";
 import 'package:http/http.dart' as http;
@@ -191,14 +193,43 @@ class kaascan_sdk {
     return config;
   }
 
+  /// Asks the Somakadi assistant.
+  ///
+  /// The signed-in parent's token goes along so the assistant can answer
+  /// about their own children; without it only the student search works.
+  /// [focusStudentId] is the child the conversation is currently about and
+  /// [history] the last few turns, so follow-ups like "2000" make sense.
   // ignore: non_constant_identifier_names
-  Future<Map<dynamic, dynamic>> ask_kaascan(String text) async {
+  Future<Map<dynamic, dynamic>> ask_kaascan(
+    String text, {
+    String? focusStudentId,
+    List<Map<String, String>> history = const [],
+  }) async {
     try {
       String baseUrl = Base_Url;
 
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString("login_token");
+
       final askReq = await api_Call.post(
         "$baseUrl/ask",
-        data: {"query": text.toString()},
+        data: {
+          "query": text.toString(),
+          "lang": languageService.currentLanguageCode,
+          if (focusStudentId != null && focusStudentId.isNotEmpty)
+            "context": {"student_id": focusStudentId},
+          if (history.isNotEmpty) "history": history,
+        },
+        options: Options(
+          headers: {
+            if (token != null && token.isNotEmpty)
+              "Authorization": "Bearer $token",
+          },
+          // The AI engine may think for a while before the no-AI engine
+          // takes over; the app-wide 10 s limit would cut that short.
+          sendTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 40),
+        ),
       );
 
       if (askReq.statusCode == 200) {

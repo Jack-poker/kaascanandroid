@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
 // Shop transfer removed
-// import 'package:lottie/lottie.dart';
+import 'package:lottie/lottie.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 
 bool _appLoading = true;
@@ -10,9 +10,9 @@ Color myWhite = Colors.white;
 Color myOpblue = const Color.fromARGB(179, 137, 160, 255);
 final backgroundColor = WidgetStateColor.resolveWith((states) {
   if (states.contains(WidgetState.pressed)) {
-    return myColor.withValues(alpha: 0.8);
+    return myColor.withOpacity(0.8);
   } else if (states.contains(WidgetState.hovered)) {
-    return myColor.withValues(alpha: 0.9);
+    return myColor.withOpacity(0.9);
   } else if (states.contains(WidgetState.disabled)) {
     return Colors.grey;
   } else if (states.contains(WidgetState.focused)) {
@@ -53,13 +53,8 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [myWhite, Color.fromARGB(255, 255, 98, 0), Color(0xFFEEF2FF)],
-          ),
-        ),
+        // Same background as the splash loading screen
+        color: const Color.fromARGB(255, 255, 60, 0),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -104,10 +99,10 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                         letterSpacing: 0.5,
                                       ),
                                       colors: [
-                                        const Color.fromARGB(255, 0, 34, 255),
-                                        const Color.fromARGB(255, 0, 94, 255),
-                                        const Color.fromARGB(255, 255, 163, 59),
-                                        const Color.fromARGB(255, 2, 155, 94),
+                                        Colors.white,
+                                        Colors.white,
+                                        const Color.fromARGB(255, 255, 214, 170),
+                                        Colors.white,
                                       ],
                                       speed: const Duration(milliseconds: 500),
                                     ),
@@ -121,7 +116,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                 child: Text(
                                   "Kohereza amafaranga ku mwana wawe ku ishuri byoroshye kandi vuba!",
                                   style: TextStyle(
-                                    color: const Color.fromRGBO(247, 247, 249, 1),
+                                    color: Colors.white,
                                     fontSize: subtitleFontSize.clamp(
                                       14.0,
                                       18.0,
@@ -134,15 +129,9 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                 ),
                               ),
                               // SizedBox(height: size.height * 0.05),
-                              // Lottie.asset(
-                                //   'assets/animations/send_money.json',
-                                //   fit: BoxFit.cover,
-                                // ),
-                              Image.asset(
-                                'assets/m_p.png',
-                                fit: BoxFit.fill,
-                                width: 350,
-                                height:400,
+                              Lottie.asset(
+                                'assets/animations/send_money.json',
+                                fit: BoxFit.cover,
                               ),
                               SizedBox(height: size.height * 0.05),
 
@@ -202,7 +191,7 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                                 child: Text(
                                   "By continuing, you agree to our Terms of Service and Privacy Policy.",
                                   style: TextStyle(
-                                    color: Colors.grey[500],
+                                    color: Colors.white,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w400,
                                     fontFamily: "gilroy-light",
@@ -213,9 +202,9 @@ class _OnboradingscreenState extends State<Onboradingscreen> {
                               ),
                               SizedBox(height: size.height * 0.02),
                               Text(
-                                "version 3.0.0",
+                                "version 2.0.3",
                                 style: TextStyle(
-                                  color: myColor.withValues(alpha: 0.5),
+                                  color: Colors.white,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                   fontFamily: "gilroy-light",
