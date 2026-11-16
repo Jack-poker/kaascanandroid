@@ -2649,32 +2649,23 @@ class _DashboardNavState extends State<DashboardNav> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // The strip around the nav bar follows the current tab: orange on the
-      // AI home tab, blue on the other tabs.
-      backgroundColor: currentIndex.value == 0 ? somaOrange : myColor,
+      backgroundColor: currentIndex.value == 3 ? somaOrange : myColor,
       body: currentIndex.value == 0
-          ? ChangeNotifierProvider<ValuesProvider>(
-              create: (_) => ValuesProvider(),
-              child: Kaascan(),
-            )
+          ? HomeScreen()
           : currentIndex.value == 1
           ? Students()
           : currentIndex.value == 2
           ? TransactionsScreen()
-          : Students(),
+          : ChangeNotifierProvider<ValuesProvider>(
+              create: (_) => ValuesProvider(),
+              child: Kaascan(),
+            ),
       bottomNavigationBar: Container(
         height: 80,
         margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         decoration: BoxDecoration(
           color: const Color.fromARGB(255, 191, 210, 255),
           borderRadius: BorderRadius.circular(30),
-          // boxShadow: [
-          //   BoxShadow(
-          //     color: Colors.black.withOpacity(0.2),
-          //     blurRadius: 20,
-          //     offset: const Offset(0, 10),
-          //   ),
-          // ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -2682,6 +2673,7 @@ class _DashboardNavState extends State<DashboardNav> {
             _buildNavItem(0, CupertinoIcons.home),
             _buildNavItem(1, CupertinoIcons.person_2),
             _buildNavItem(2, CupertinoIcons.time),
+            _buildNavItem(3, Icons.psychology_rounded),
           ],
         ),
       ),
