@@ -425,114 +425,237 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ).then((_) => _loadFeaturedSetting());
   }
 
+  double get _totalStudentBalance => listStudent.fold(
+        0.0,
+        (sum, s) => sum + ((s['account_balance'] as num?)?.toDouble() ?? 0.0),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 195, 228, 255),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             await _initProfile();
             await _fetchTransactions();
           },
-          color: myBlack,
-          child: Stack(
-            children: [
-              Skeletonizer(
-                enabled: _appLoading,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-                      _buildHeader(),
-                      const SizedBox(height: 40),
-                      _buildAdsSection(),
-
-                      const SizedBox(height: 32),
-                      _buildActionButtons(),
-                      // _buildPosTools(),
-                      const SizedBox(height: 32),
-                      _buildPromoBanner(),
-                      const SizedBox(height: 40),
-                      if (listStudent.isNotEmpty) ...[
-                        Container(
-                          margin: const EdgeInsets.all(16),
-                          padding: const EdgeInsets.all(0),
-
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.swap_horiz_rounded,
-                                    color: myColor,
-                                    size: 28,
-                                  ),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    "Ohereza Amafaranga Umwana Wawe",
-                                    style: TextStyle(
-                                      color: Color.fromARGB(255, 0, 30, 255),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: "gilroy",
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 15),
-                              Text(
-                                "Ababyeyi bashobora kohereza amafaranga ku banyeshuri mu buryo bworoshye kandi bwihuse. "
-                                "Amafaranga agera ku ikarita y’umunyeshuri ako kanya, kandi akayakoresha mu ishuri mu mutekano.",
-                                style: TextStyle(
-                                  color: Color.fromARGB(255, 0, 13, 255),
-                                  fontSize: 12,
-                                  height: 1.5,
-                                ),
-                              ),
-                              SizedBox(height: 15),
-                              Text(
-                                "• Byihuse kandi byizewe\n"
-                                "• Nta gukoresha amafaranga mu ntoki\n"
-                                "• Gukurikirana uko akoreshwa",
-                                style: TextStyle(
-                                  color: Color.fromARGB(255, 255, 98, 0),
-                                  fontSize: 12,
-                                  height: 1.6,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildSendAgainSection(),
-                        const SizedBox(height: 40),
+          color: myColor,
+          child: Skeletonizer(
+            enabled: _appLoading,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCleanTopBar(),
+                  _buildBalanceCard(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 28),
+                        _buildActionButtons(),
+                        const SizedBox(height: 32),
+                        _buildStudentsSection(),
+                        const SizedBox(height: 32),
+                        _buildHistorySection(),
+                        const SizedBox(height: 120),
                       ],
-                      _buildStudentsSection(),
-                      const SizedBox(height: 40),
-                      _buildHistorySection(),
-                      const SizedBox(height: 120), // Space for floating bar
-                    ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCleanTopBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 16, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Welcome back 👋',
+                style: TextStyle(
+                  color: const Color(0xFF9CA3AF),
+                  fontSize: 13,
+                  fontFamily: 'gilroy',
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _userId.isNotEmpty ? _userId : 'Somakadi',
+                style: const TextStyle(
+                  color: Color(0xFF11142D),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'gilroy',
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: _showNotifications,
+                icon: const Icon(
+                  CupertinoIcons.bell,
+                  color: Color(0xFF11142D),
+                  size: 22,
+                ),
+              ),
+              GestureDetector(
+                onTap: _showSettings,
+                child: Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: const BoxDecoration(
+                    color: myColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.settings_rounded,
+                    color: Colors.white,
+                    size: 18,
                   ),
                 ),
               ),
-              if (_appLoading)
-                Positioned.fill(
-                  child: Center(
-                    child: LoadingAnimationWidget.discreteCircle(
-                      color: const Color.fromARGB(255, 52, 79, 255),
-                      size: 50,
-                    ),
-                  ),
-                ),
+              const SizedBox(width: 4),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceCard() {
+    final total = _totalStudentBalance;
+    final avgBalance =
+        listStudent.isEmpty ? 0.0 : total / listStudent.length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0022FF), Color(0xFF3D5AFE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Your Wallet',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.75),
+                  fontSize: 13,
+                  fontFamily: 'gilroy',
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  accountCurrency,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontFamily: 'gilroy',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          AnimatedBuilder(
+            animation: _balanceAnimation,
+            builder: (_, __) => Text(
+              _formatCurrency(accountBalance * _balanceAnimation.value),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 38,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'gilroy',
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+              height: 1,
+              color: Colors.white.withOpacity(0.18)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Students Total',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
+                        fontFamily: 'gilroy',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_formatCurrency(total)} RWF',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'gilroy',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${listStudent.length} Student${listStudent.length != 1 ? "s" : ""}',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
+                      fontFamily: 'gilroy',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_formatCurrency(avgBalance)} avg',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'gilroy',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1805,7 +1928,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (listStudent.isNotEmpty)
               TextButton.icon(
                 onPressed: () {
-                  currentIndex.value = 1;
+                  currentIndex.value = 2;
                 },
                 icon: Icon(
                   Icons.arrow_forward_rounded,
@@ -1842,7 +1965,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 openAddStudentDialog(context, Colors.lightGreen),
             onStudentTap: (index) {
               if (_appLoading) return;
-              currentIndex.value = 1;
+              currentIndex.value = 2;
             },
           ),
       ],
@@ -2649,17 +2772,17 @@ class _DashboardNavState extends State<DashboardNav> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: currentIndex.value == 3 ? somaOrange : myColor,
+      backgroundColor: currentIndex.value == 1 ? somaOrange : myColor,
       body: currentIndex.value == 0
           ? HomeScreen()
           : currentIndex.value == 1
-          ? Students()
-          : currentIndex.value == 2
-          ? TransactionsScreen()
-          : ChangeNotifierProvider<ValuesProvider>(
+          ? ChangeNotifierProvider<ValuesProvider>(
               create: (_) => ValuesProvider(),
               child: Kaascan(),
-            ),
+            )
+          : currentIndex.value == 2
+          ? Students()
+          : TransactionsScreen(),
       bottomNavigationBar: Container(
         height: 80,
         margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -2671,9 +2794,9 @@ class _DashboardNavState extends State<DashboardNav> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _buildNavItem(0, CupertinoIcons.home),
-            _buildNavItem(1, CupertinoIcons.person_2),
-            _buildNavItem(2, CupertinoIcons.time),
-            _buildNavItem(3, Icons.psychology_rounded),
+            _buildNavItem(1, Icons.psychology_rounded),
+            _buildNavItem(2, CupertinoIcons.person_2),
+            _buildNavItem(3, CupertinoIcons.time),
           ],
         ),
       ),

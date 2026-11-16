@@ -66,6 +66,8 @@ class _KaascanState extends State<Kaascan> {
   /// follow-up like "2000" is understood as "send 2000 to that child".
   String? _focusStudentId;
 
+  late ScrollController _chatScrollController;
+
   // --- Draggable overlay state for student image preview ---
   String? _overlayPhotoUrl;
   String? _overlayStudentName;
@@ -312,12 +314,51 @@ class _KaascanState extends State<Kaascan> {
   @override
   void dispose() {
     askText.dispose();
+    _chatScrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToBottom() {
+    if (_chatScrollController.hasClients) {
+      _chatScrollController.animateTo(
+        _chatScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Widget _buildUserBubble(ChatMessage msg) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12, left: 60),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(4),
+          ),
+        ),
+        child: Text(
+          msg.text,
+          style: const TextStyle(
+            color: Color(0xFF11142D),
+            fontSize: 15,
+            fontFamily: 'minigap',
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   void initState() {
     super.initState();
+    _chatScrollController = ScrollController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final provider = context.read<ValuesProvider>();
@@ -1331,102 +1372,67 @@ class _KaascanState extends State<Kaascan> {
       body: SafeArea(
         child: Stack(
           children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildAppBar(),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    child: Consumer<ValuesProvider>(
-                      builder: (BuildContext context,
-                          ValuesProvider value, Widget? child) {
-                        return Column(
-                          children: [
-                            _buildTextInput(value),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              // Tall enough for the assistant's cards; the
-                              // answer scrolls inside when it is longer.
-                              height: math.max(
-                                300.0,
-                                MediaQuery.of(context).size.height * 0.52,
+            Consumer<ValuesProvider>(
+              builder: (context, value, _) {
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => _scrollToBottom());
+                return Column(
+                  children: [
+                    _buildAppBar(),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _chatScrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: value.messages.length +
+                            (value.waiting_ask ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == value.messages.length) {
+                            return const Padding(
+                              padding: EdgeInsets.only(bottom: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: TypingIndicator(
+                                    senderName: 'Somakadi AI'),
                               ),
-                              child: Consumer<ValuesProvider>(
-                                builder: (context, value, child) {
-                                  return value.waiting_ask
-                                      ? const Center(
-                                          child: TypingIndicator(
-                                              senderName: 'Somakadi AI'),
-                                        )
-                                      : value.messages.isNotEmpty
-                                          ? ListView(
-                                              physics:
-                                                  const BouncingScrollPhysics(),
-                                              children: [
-                                                for (final msg in value.messages
-                                                    .where((m) => m.isAi)
-                                                    .toList()
-                                                    .reversed
-                                                    .take(1))
-                                                  ChatBubble(
-                                                    key: ValueKey(
-                                                        msg.timestamp),
-                                                    message: msg.text,
-                                                    timestamp: msg.timestamp,
-                                                    senderName: "somakadi AI",
-                                                    avatarUrl:
-                                                        "https://yt3.ggpht.com/7z4pKV9YM3c-LfNzx1cgx3OfagWqUR9uZHQwiCsc9Jrr2sqdgtOS85AstsGehJn5opnrFmuz46I=s88-c-k-c0x00ffffff-no-rj",
-                                                    responseData:
-                                                        msg.askResponse,
-                                                    onActionTapped:
-                                                        (actionMessage) =>
-                                                            _handleActionTap(
-                                                      actionMessage,
-                                                      value,
-                                                    ),
-                                                    onSimulateAndShow:
-                                                        (actionMessage,
-                                                                responseData) =>
-                                                            _handleSimulateAndShow(
-                                                      actionMessage,
-                                                      responseData,
-                                                      value,
-                                                    ),
-                                                    onProductTap: msg.askResponse !=
-                                                            null
-                                                        ? () => {}
-                                                        : null,
-                                                    onActiveStudentChanged:
-                                                        (photoUrl, name) =>
-                                                            _showStudentOverlay(
-                                                      photoUrl,
-                                                      name,
-                                                    ),
-                                                    onUiSend:
-                                                        (message, studentId) =>
-                                                            _handleUiSend(
-                                                      message,
-                                                      studentId,
-                                                      value,
-                                                    ),
-                                                    onConfirmTopup:
-                                                        _confirmTopup,
-                                                  ),
-                                              ],
-                                            )
-                                          : const SizedBox.shrink();
-                                },
-                              ),
+                            );
+                          }
+                          final msg = value.messages[index];
+                          if (msg.isUser) {
+                            return _buildUserBubble(msg);
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: ChatBubble(
+                              key: ValueKey(msg.timestamp),
+                              message: msg.text,
+                              timestamp: msg.timestamp,
+                              senderName: "somakadi AI",
+                              avatarUrl:
+                                  "https://yt3.ggpht.com/7z4pKV9YM3c-LfNzx1cgx3OfagWqUR9uZHQwiCsc9Jrr2sqdgtOS85AstsGehJn5opnrFmuz46I=s88-c-k-c0x00ffffff-no-rj",
+                              responseData: msg.askResponse,
+                              onActionTapped: (actionMessage) =>
+                                  _handleActionTap(actionMessage, value),
+                              onSimulateAndShow:
+                                  (actionMessage, responseData) =>
+                                      _handleSimulateAndShow(
+                                          actionMessage, responseData, value),
+                              onProductTap:
+                                  msg.askResponse != null ? () => {} : null,
+                              onActiveStudentChanged: (photoUrl, name) =>
+                                  _showStudentOverlay(photoUrl, name),
+                              onUiSend: (message, studentId) =>
+                                  _handleUiSend(message, studentId, value),
+                              onConfirmTopup: _confirmTopup,
                             ),
-                          ],
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                    _buildTextInput(value),
+                  ],
+                );
+              },
             ),
             if (_overlayVisible) _buildDraggableOverlay(),
           ],
