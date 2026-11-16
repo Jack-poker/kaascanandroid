@@ -43,6 +43,10 @@ class ChatBubble extends StatefulWidget {
   /// Called when the parent confirms a top-up card.
   final AgenticConfirmTopup? onConfirmTopup;
 
+  /// When false the typewriter animation is skipped — the full text is shown
+  /// immediately. Use this for messages that have already been displayed once.
+  final bool animate;
+
   const ChatBubble({
     super.key,
     required this.message,
@@ -57,6 +61,7 @@ class ChatBubble extends StatefulWidget {
     this.onActiveStudentChanged,
     this.onUiSend,
     this.onConfirmTopup,
+    this.animate = true,
   });
 
   @override
@@ -236,9 +241,10 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
       );
     }
 
-    if (_displayMessageText.isNotEmpty) {
+    if (_displayMessageText.isNotEmpty && widget.animate) {
       _startTypewriter();
     } else {
+      _displayedText = _displayMessageText;
       _typewriterComplete = true;
     }
   }

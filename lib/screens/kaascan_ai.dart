@@ -67,6 +67,7 @@ class _KaascanState extends State<Kaascan> {
   String? _focusStudentId;
 
   late ScrollController _chatScrollController;
+  final Set<DateTime> _displayedMessageKeys = {};
 
   // --- Draggable overlay state for student image preview ---
   String? _overlayPhotoUrl;
@@ -1401,6 +1402,11 @@ class _KaascanState extends State<Kaascan> {
                           if (msg.isUser) {
                             return _buildUserBubble(msg);
                           }
+                          final isNew = !_displayedMessageKeys
+                              .contains(msg.timestamp);
+                          if (isNew) {
+                            _displayedMessageKeys.add(msg.timestamp);
+                          }
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: ChatBubble(
@@ -1411,6 +1417,7 @@ class _KaascanState extends State<Kaascan> {
                               avatarUrl:
                                   "https://yt3.ggpht.com/7z4pKV9YM3c-LfNzx1cgx3OfagWqUR9uZHQwiCsc9Jrr2sqdgtOS85AstsGehJn5opnrFmuz46I=s88-c-k-c0x00ffffff-no-rj",
                               responseData: msg.askResponse,
+                              animate: isNew,
                               onActionTapped: (actionMessage) =>
                                   _handleActionTap(actionMessage, value),
                               onSimulateAndShow:
