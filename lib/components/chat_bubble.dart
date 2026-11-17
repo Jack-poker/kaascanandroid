@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:kaascan/components/agentic_ui.dart';
+import 'package:kaascan/services/soma_audio.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 import 'package:kaascan/main.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -242,6 +243,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     }
 
     if (_displayMessageText.isNotEmpty && widget.animate) {
+      SomaAudio.instance.init();
       _startTypewriter();
     } else {
       _displayedText = _displayMessageText;
@@ -414,6 +416,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     const typeSpeed = Duration(milliseconds: 15);
     _charIndex = 0;
     _displayedText = '';
+    final audio = SomaAudio.instance;
 
     Future.doWhile(() async {
       await Future.delayed(typeSpeed);
@@ -424,9 +427,16 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
         _displayedText = _displayMessageText.substring(0, _charIndex);
       });
 
+      // Soft tick + haptic every 8 characters (not every char — stays subtle)
+      if (_charIndex % 8 == 0) {
+        audio.onTyping();
+      }
+
       if (_charIndex >= _displayMessageText.length) {
         _typewriterComplete = true;
         setState(() {});
+        // Pleasant chime + haptic when writing finishes
+        audio.onDone();
         if (_parsedResponse != null &&
             (_parsedResponse!.isStudentList ||
                 _parsedResponse!.hasSingleStudent) &&

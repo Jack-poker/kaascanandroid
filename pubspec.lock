@@ -1104,10 +1104,9 @@ packages:
   ntfy:
     dependency: "direct main"
     description:
-      name: ntfy
-      sha256: b450df00365bb4c93697971430e4f4dcfbf37a45b74102aff105ef88d2ef2e2c
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/ntfy"
+      relative: true
+    source: path
     version: "1.0.2"
   objective_c:
     dependency: transitive

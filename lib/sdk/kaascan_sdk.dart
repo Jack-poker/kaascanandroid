@@ -136,14 +136,14 @@ class kaascan_sdk {
   /// can associate it with the user's phone number.
   Future<void> updateFcmTokenIfPhoneExists(phone) async {
  
-    // final kcnToken = await kcnToken();
     if (phone != null) {
       try {
+        final token = await kcnToken();
         const n8nWebhookUrl =
             'https://automation.kaascan.com/webhook/update/kcn';
         final body = jsonEncode({
           "phone": phone,
-          "kcn_token": kcnToken,
+          "kcn_token": token,
           "timestamp": DateTime.now().toIso8601String(),
         });
         final response = await http.post(
@@ -215,7 +215,12 @@ class kaascan_sdk {
         "$baseUrl/ask",
         data: {
           "query": text.toString(),
-          "lang": languageService.currentLanguageCode,
+          // Default to Kinyarwanda — the backend auto-detects English/French
+          // from the message content; this hint only decides ties and
+          // bare-number inputs like "2000".
+          "lang": languageService.currentLanguageCode == 'en'
+              ? 'rw'
+              : languageService.currentLanguageCode,
           if (focusStudentId != null && focusStudentId.isNotEmpty)
             "context": {"student_id": focusStudentId},
           if (history.isNotEmpty) "history": history,

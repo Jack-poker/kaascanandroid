@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert' show base64Decode;
+import 'dart:convert' show base64Decode, jsonDecode, jsonEncode;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kaascan/services/soma_audio.dart';
 import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image/image.dart' as imglib;
@@ -68,6 +69,11 @@ class _KaascanState extends State<Kaascan> {
 
   late ScrollController _chatScrollController;
   final Set<DateTime> _displayedMessageKeys = {};
+  String _sessionId = '';
+  ValuesProvider? _valuesProvider;
+
+  static const String _historyKey = 'soma_chat_history';
+  static const int _maxSessions = 30;
 
   // --- Draggable overlay state for student image preview ---
   String? _overlayPhotoUrl;
@@ -316,17 +322,94 @@ class _KaascanState extends State<Kaascan> {
   void dispose() {
     askText.dispose();
     _chatScrollController.dispose();
+    _valuesProvider?.removeListener(_onMessagesChanged);
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (_chatScrollController.hasClients) {
-      _chatScrollController.animateTo(
-        _chatScrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+  void _onMessagesChanged() {
+    final p = _valuesProvider;
+    if (p == null) return;
+    // Scroll on every state change — covers new message AND waiting_ask toggle
+    _scrollToBottom();
+    if (!p.waiting_ask && p.messages.isNotEmpty) {
+      _saveCurrentSession(List.from(p.messages));
     }
+  }
+
+  Future<void> _saveCurrentSession(List<ChatMessage> messages) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_historyKey);
+      List<dynamic> history =
+          raw != null ? List.from(jsonDecode(raw) as List) : [];
+
+      final msgMaps = messages
+          .map((m) => {
+                'role': m.role,
+                'text': m.text,
+                'ts': m.timestamp.toIso8601String(),
+              })
+          .toList();
+
+      final firstUser =
+          messages.firstWhere((m) => m.isUser, orElse: () => messages.first);
+      final title = firstUser.text.length > 60
+          ? '${firstUser.text.substring(0, 60)}...'
+          : firstUser.text;
+
+      final session = {
+        'id': _sessionId,
+        'title': title,
+        'updatedAt': DateTime.now().toIso8601String(),
+        'messages': msgMaps,
+      };
+
+      history.removeWhere((s) => s['id'] == _sessionId);
+      history.insert(0, session);
+      if (history.length > _maxSessions) history = history.sublist(0, _maxSessions);
+      await prefs.setString(_historyKey, jsonEncode(history));
+    } catch (_) {}
+  }
+
+  Future<List<Map<String, dynamic>>> _loadHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_historyKey);
+      if (raw == null) return [];
+      return List<Map<String, dynamic>>.from(
+          (jsonDecode(raw) as List).cast<Map<String, dynamic>>());
+    } catch (_) {
+      return [];
+    }
+  }
+
+  void _showHistorySheet() async {
+    final history = await _loadHistory();
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _HistorySheet(
+        history: history,
+        currentSessionId: _sessionId,
+      ),
+    );
+  }
+
+  void _scrollToBottom() {
+    // Double post-frame ensures layout is complete before measuring maxScrollExtent
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScrollController.hasClients) {
+          _chatScrollController.animateTo(
+            _chatScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    });
   }
 
   Widget _buildUserBubble(ChatMessage msg) {
@@ -359,29 +442,13 @@ class _KaascanState extends State<Kaascan> {
   @override
   void initState() {
     super.initState();
+    _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
     _chatScrollController = ScrollController();
+    SomaAudio.instance.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final provider = context.read<ValuesProvider>();
-      if (provider.messages.isEmpty && !_greetingAdded) {
-        _greetingAdded = true;
-        provider.addAiResponse({
-          "ask_response":
-              "Muraho neza! Ndagufasha kuguhuza n'umwana wawe. Nyamuneka wandike izina ry'umunyeshuri wifuza guhuza. wambwira amazina ye",
-          "response":
-              "Muraho neza! Ndagufasha kuguhuza n'umwana wawe. Nyamuneka wandike izina ry'umunyeshuri wifuza guhuza. wambwira amazina ye.",
-          // Starting points, so a parent sees what the assistant can do.
-          "suggestions": [
-            {"label": "Abana banjye", "message": "Abana banjye"},
-            {"label": "Amafaranga asigaye", "message": "Amafaranga asigaye"},
-            {
-              "label": "Ohereza amafaranga",
-              "message": "Ohereza amafaranga",
-              "style": "primary",
-            },
-          ],
-        });
-      }
+      _valuesProvider = context.read<ValuesProvider>();
+      _valuesProvider!.addListener(_onMessagesChanged);
     });
   }
 
@@ -405,7 +472,7 @@ class _KaascanState extends State<Kaascan> {
       setState(() {});
 
       provider.addUserMessage(text);
-      HapticFeedback.lightImpact();
+      SomaAudio.instance.onSend();
 
       if (_isSimulatedAction) {
         _isSimulatedAction = false;
@@ -1305,59 +1372,123 @@ class _KaascanState extends State<Kaascan> {
 
   Widget _buildAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
       decoration: const BoxDecoration(color: _splashOrange),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
           Image.asset(
             'assets/Glossy 3D White C Emblem.png',
-            height: 180,
-            width: 270,
+            height: 32,
+            width: 32,
             fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                height: 80,
-                width: 80,
-                decoration: BoxDecoration(
-                  color: Colors.deepOrange,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Text(
-                    'S',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          // const Text(
-          //   'Kaascan',
-          //   style: TextStyle(
-          //     fontSize: 30,
-          //     fontWeight: FontWeight.bold,
-          //     color: Colors.white,
-          //     fontFamily: "minigap",
-          //   ),
-          // ),
-          const SizedBox(height: 4),
-          Text(
-            'Version 3.0',
-            style: TextStyle(
-              fontSize: 12,
-              color: const Color.fromARGB(255, 255, 255, 255),
-              fontWeight: FontWeight.w100,
-              fontFamily: "minigap",
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.psychology_rounded,
+              color: Colors.white,
+              size: 28,
             ),
           ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Soma AI',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'minigap',
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: _showHistorySheet,
+            icon: const Icon(
+              Icons.history_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            tooltip: 'Chat History',
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/Glossy 3D White C Emblem.png',
+            height: 140,
+            width: 200,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.psychology_rounded,
+              color: Colors.white54,
+              size: 100,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Soma AI',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'minigap',
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Nkubwire ibibazo byawe\nNzakufasha vuba',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.75),
+              fontSize: 15,
+              fontFamily: 'minigap',
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              _buildHintChip('Abana banjye'),
+              _buildHintChip('Amafaranga asigaye'),
+              _buildHintChip('Ohereza amafaranga'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHintChip(String label) {
+    return GestureDetector(
+      onTap: () {
+        askText.text = label;
+        setState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.35)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontFamily: 'minigap',
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -1375,13 +1506,13 @@ class _KaascanState extends State<Kaascan> {
           children: [
             Consumer<ValuesProvider>(
               builder: (context, value, _) {
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _scrollToBottom());
                 return Column(
                   children: [
                     _buildAppBar(),
                     Expanded(
-                      child: ListView.builder(
+                      child: (value.messages.isEmpty && !value.waiting_ask)
+                          ? _buildEmptyState()
+                          : ListView.builder(
                         controller: _chatScrollController,
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                         physics: const BouncingScrollPhysics(),
@@ -1435,7 +1566,7 @@ class _KaascanState extends State<Kaascan> {
                           );
                         },
                       ),
-                    ),
+                    ),  // end ListView / empty state
                     _buildTextInput(value),
                   ],
                 );
@@ -1688,6 +1819,334 @@ class _KaascanState extends State<Kaascan> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// HISTORY BOTTOM SHEET
+// =====================================================================
+
+class _HistorySheet extends StatelessWidget {
+  final List<Map<String, dynamic>> history;
+  final String currentSessionId;
+
+  const _HistorySheet({
+    required this.history,
+    required this.currentSessionId,
+  });
+
+  static const Color _orange = Color.fromARGB(255, 255, 60, 0);
+
+  String _relativeTime(String isoDate) {
+    try {
+      final dt = DateTime.parse(isoDate);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      if (diff.inDays == 1) return 'Yesterday';
+      return '${diff.inDays}d ago';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _orange.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      color: _orange,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Chat History',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'minigap',
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${history.length} sessions',
+                    style: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 13,
+                      fontFamily: 'minigap',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white12, height: 1),
+            // List
+            Expanded(
+              child: history.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No previous conversations',
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontFamily: 'minigap',
+                          fontSize: 15,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: history.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(color: Colors.white10, height: 1),
+                      itemBuilder: (_, i) {
+                        final s = history[i];
+                        final isCurrent = s['id'] == currentSessionId;
+                        final msgs = (s['messages'] as List?) ?? [];
+                        return ListTile(
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _openSession(context, s);
+                          },
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? _orange.withOpacity(0.2)
+                                  : Colors.white10,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              isCurrent
+                                  ? Icons.chat_bubble_rounded
+                                  : Icons.chat_bubble_outline_rounded,
+                              color: isCurrent ? _orange : Colors.white38,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            s['title'] ?? 'Conversation',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'minigap',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${msgs.length} messages  •  ${_relativeTime(s['updatedAt'] ?? '')}',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontFamily: 'minigap',
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: isCurrent
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: _orange.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Text(
+                                    'Active',
+                                    style: TextStyle(
+                                      color: _orange,
+                                      fontSize: 11,
+                                      fontFamily: 'minigap',
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.white24,
+                                ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openSession(BuildContext context, Map<String, dynamic> session) {
+    final msgs = (session['messages'] as List?)
+            ?.map((m) => Map<String, dynamic>.from(m as Map))
+            .toList() ??
+        [];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _SessionViewSheet(
+        title: session['title'] ?? 'Conversation',
+        messages: msgs,
+        updatedAt: session['updatedAt'] ?? '',
+      ),
+    );
+  }
+}
+
+class _SessionViewSheet extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> messages;
+  final String updatedAt;
+
+  const _SessionViewSheet({
+    required this.title,
+    required this.messages,
+    required this.updatedAt,
+  });
+
+  static const Color _orange = Color.fromARGB(255, 255, 60, 0);
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'minigap',
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded,
+                        color: Colors.white38, size: 22),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white12, height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.all(16),
+                itemCount: messages.length,
+                itemBuilder: (_, i) {
+                  final m = messages[i];
+                  final isUser = m['role'] == 'user';
+                  final text = m['text'] as String? ?? '';
+                  return Align(
+                    alignment:
+                        isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: EdgeInsets.only(
+                        bottom: 10,
+                        left: isUser ? 60 : 0,
+                        right: isUser ? 0 : 60,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isUser
+                            ? _orange.withOpacity(0.85)
+                            : Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft:
+                              Radius.circular(isUser ? 16 : 4),
+                          bottomRight:
+                              Radius.circular(isUser ? 4 : 16),
+                        ),
+                      ),
+                      child: Text(
+                        text,
+                        style: TextStyle(
+                          color:
+                              isUser ? Colors.white : Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                          fontFamily: 'minigap',
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

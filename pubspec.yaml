@@ -72,6 +72,10 @@ dependencies:
 
 
 
+dependency_overrides:
+  ntfy:
+    path: packages/ntfy
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,4 +1,4 @@
-bool isProduction = false; // be carefully or you waste time !
+bool isProduction = true; // be carefully or you waste time !
 String get Base_Url => isProduction
     ? "https://api.v3.kaascan.com" // this is set for production ready
     : "http://192.168.1.150:8000"; // for development and testing purposes only
@@ -13,3 +13,4 @@ var N8n_Parent_Withdraw_Url = isProduction
 var N8n_Merchant_Withdraw_Url = isProduction
     ? "https://automation.kaascan.com/webhook/merchant-withdraw"
     : "https://automation.kaascan.com/webhook/merchant-withdraw";
+

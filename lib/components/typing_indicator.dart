@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 
-/// An animated typing indicator with bouncing dots and AI avatar.
+/// Smart thinking indicator with rotating Kinyarwanda phrases and
+/// animated dots. Cycles through contextual status messages so the
+/// user stays engaged while Soma AI prepares a response.
 class TypingIndicator extends StatefulWidget {
   final String? avatarUrl;
   final String? senderName;
@@ -18,21 +21,42 @@ class TypingIndicator extends StatefulWidget {
 
 class _TypingIndicatorState extends State<TypingIndicator>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  // ── dot animation ──────────────────────────────────────────────────────────
+  late AnimationController _dotController;
   late List<Animation<double>> _dotAnimations;
+
+  // ── phrase rotation ────────────────────────────────────────────────────────
+  static const _phrases = [
+    'Thinking...',
+    'Searching knowledge base...',
+    'Running calculations...',
+    'Preparing your answer...',
+    'Analyzing data...',
+    'Looking that up...',
+    'Processing request...',
+    'Crunching numbers...',
+    'Almost ready...',
+    'Nearly done...',
+  ];
+
+  int _phraseIndex = 0;
+  double _phraseOpacity = 1.0;
+  Timer? _phraseTimer;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    // Dots bounce animation
+    _dotController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    );
+    )..repeat(reverse: true);
 
     _dotAnimations = List.generate(3, (i) {
       return Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
-          parent: _controller,
+          parent: _dotController,
           curve: Interval(
             i * 0.15,
             0.4 + i * 0.15,
@@ -42,12 +66,24 @@ class _TypingIndicatorState extends State<TypingIndicator>
       );
     });
 
-    _controller.repeat(reverse: true);
+    // Phrase cycling — fade out → swap text → fade in every 2.4 s
+    _phraseTimer = Timer.periodic(const Duration(milliseconds: 2400), (_) {
+      if (!mounted) return;
+      setState(() => _phraseOpacity = 0.0);
+      Future.delayed(const Duration(milliseconds: 280), () {
+        if (!mounted) return;
+        setState(() {
+          _phraseIndex = (_phraseIndex + 1) % _phrases.length;
+          _phraseOpacity = 1.0;
+        });
+      });
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _dotController.dispose();
+    _phraseTimer?.cancel();
     super.dispose();
   }
 
@@ -55,92 +91,111 @@ class _TypingIndicatorState extends State<TypingIndicator>
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, right: 48, top: 4, bottom: 4),
-      child: AnimatedSlide(
-        duration: const Duration(milliseconds: 300),
-        offset: Offset.zero,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 300),
-          opacity: 1.0,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // AI Avatar
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF7C4DFF), Color(0xFFB388FF)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: widget.avatarUrl != null &&
-                          widget.avatarUrl!.isNotEmpty
-                      ? CachedNetworkImageWrapper(
-                          imageUrl: widget.avatarUrl!,
-                          fit: BoxFit.cover,
-                          borderRadius: BorderRadius.circular(16),
-                          errorWidget: const Icon(
-                            Icons.smart_toy,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.smart_toy,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── AI avatar ────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0019CD), Color(0xFF4D6FE8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ),
-              const SizedBox(width: 8),
-              // Typing bubble
-              Flexible(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(4),
-                      topRight: Radius.circular(20),
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (int i = 0; i < 3; i++) _buildDot(i),
-                    ],
-                  ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 1.5,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF0019CD).withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
+              child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
+                  ? CachedNetworkImageWrapper(
+                      imageUrl: widget.avatarUrl!,
+                      fit: BoxFit.cover,
+                      borderRadius: BorderRadius.circular(16),
+                      errorWidget: const Icon(
+                        Icons.smart_toy,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      placeholder: const Icon(
+                        Icons.smart_toy,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.smart_toy,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+            ),
           ),
-        ),
+
+          const SizedBox(width: 8),
+
+          // ── thinking bubble ───────────────────────────────────────────────
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Rotating phrase
+                  AnimatedOpacity(
+                    opacity: _phraseOpacity,
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeInOut,
+                    child: Text(
+                      _phrases[_phraseIndex],
+                      style: const TextStyle(
+                        color: Color(0xFF0019CD),
+                        fontFamily: 'minigap',
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Bouncing dots
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(3, _buildDot),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -148,18 +203,22 @@ class _TypingIndicatorState extends State<TypingIndicator>
   Widget _buildDot(int index) {
     return AnimatedBuilder(
       animation: _dotAnimations[index],
-      builder: (context, child) {
+      builder: (context, _) {
+        final v = _dotAnimations[index].value;
         return Padding(
           padding: const EdgeInsets.only(right: 5),
           child: Transform.translate(
-            offset: Offset(0, -4 * _dotAnimations[index].value),
+            offset: Offset(0, -5 * v),
             child: Container(
-              width: 8,
-              height: 8,
+              width: 7,
+              height: 7,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,color: Colors.deepPurpleAccent.withValues(
-                    alpha: 0.3 + 0.5 * _dotAnimations[index].value,
-                  ),
+                shape: BoxShape.circle,
+                color: Color.lerp(
+                  const Color(0xFF90A4D4).withValues(alpha: 0.5),
+                  const Color(0xFF0019CD),
+                  v,
+                ),
               ),
             ),
           ),
