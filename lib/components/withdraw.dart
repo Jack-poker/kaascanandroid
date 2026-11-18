@@ -34,17 +34,76 @@ class _WithdrawPageState extends State<WithdrawPage>
   String _amount = "0";
   bool isLoading = false;
   bool _pageLoading = true;
- 
+
   final backendClient app = backendClient();
+
+  // From GET /wallet/withdraw/options
+  List<Map<String, dynamic>> _methods = [];
+  String? _method; // "MOMO" | "BANK"
+  double _balance = 0;
+  String _optionsError = "";
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        setState(() => _pageLoading = false);
-      }
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    setState(() {
+      _pageLoading = true;
+      _optionsError = "";
     });
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("login_token") ?? "";
+    final res = await app.withdrawOptions(token);
+    if (!mounted) return;
+    final data = res.data;
+    if (res.statusCode == 200 && data is Map && data['methods'] is List) {
+      final methods = (data['methods'] as List)
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      final firstAvailable = methods.firstWhere(
+        (m) => m['available'] == true,
+        orElse: () => <String, dynamic>{},
+      );
+      setState(() {
+        _methods = methods;
+        _balance = (data['balance'] as num?)?.toDouble() ?? 0;
+        _method = firstAvailable['method'] as String?;
+        _pageLoading = false;
+      });
+    } else {
+      setState(() {
+        _optionsError =
+            (data is Map ? data['message'] ?? data['detail'] : null)
+                ?.toString() ??
+            "Ntabwo twabashije kubona uburyo bwo kubikuza.";
+        _pageLoading = false;
+      });
+    }
+  }
+
+  Map<String, dynamic> get _selected => _methods.firstWhere(
+    (m) => m['method'] == _method,
+    orElse: () => <String, dynamic>{},
+  );
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontFamily: "gilroy", color: myWhite),
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _onKeyPress(String key) {
@@ -80,7 +139,7 @@ class _WithdrawPageState extends State<WithdrawPage>
     return amount.replaceAllMapped(formatter, (Match m) => '${m[1]},');
   }
 
-  Future<void> _showOtpDialog(String token) async {
+  Future<void> _showOtpDialog(String token, Map<String, String>? bank) async {
     final success = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -92,6 +151,8 @@ class _WithdrawPageState extends State<WithdrawPage>
             amount: double.tryParse(_amount) ?? 0.0,
             app: app,
             phone: "",
+            method: _method ?? "MOMO",
+            bankDetails: bank,
           ),
         );
       },
@@ -107,58 +168,57 @@ class _WithdrawPageState extends State<WithdrawPage>
   Future<void> _requestOtpAndShowDialog() async {
     final double? amountValue = double.tryParse(_amount);
     if (amountValue == null || amountValue <= 0) return;
+    if (_method == null) {
+      _snack(
+        _optionsError.isNotEmpty
+            ? _optionsError
+            : "Nta buryo bwo kubikuza buboneka kuri konti yawe.",
+      );
+      return;
+    }
+    if (amountValue > _balance) {
+      _snack(
+        "Amafaranga ari kuri konti ntahagije (${_formatCurrency(_balance.toStringAsFixed(0))} RWF).",
+      );
+      return;
+    }
+
+    Map<String, String>? bank;
+    if (_method == "BANK") {
+      bank = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (_) => const Dialog(
+          backgroundColor: Colors.transparent,
+          child: BankDetailsDialog(),
+        ),
+      );
+      if (bank == null) return;
+    }
 
     setState(() => isLoading = true);
-    var tempStorage = await SharedPreferences.getInstance();
-    var phone = tempStorage.getString("phonenumber");
-    var token = tempStorage.getString("login_token") ?? "";
+    final tempStorage = await SharedPreferences.getInstance();
+    final token = tempStorage.getString("login_token") ?? "";
     try {
-      var xtoken = await app.csrfToken();
-      final otpRes = await app.requestWithdrawotp(
-        xtoken.data['csrf_token'],
+      final xtoken = await app.csrfToken();
+      final otpRes = await app.sendWithdrawOtp(
+        xtoken.data['csrf_token']?.toString() ?? "",
         token,
-        amountValue.toInt(),
-        phone,
+        amountValue,
       );
-      if (otpRes.statusCode == 200 && otpRes.data['status'] == "pending_otp") {
-        await _showOtpDialog(token);
+      final data = otpRes.data;
+      if (otpRes.statusCode == 200 &&
+          data is Map &&
+          data['status'] == "pending_otp") {
+        await _showOtpDialog(token, bank);
       } else {
-        if (mounted) {
-          String message =
-              otpRes.data['message'] ?? "Failed to send OTP. Please try again.";
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                message,
-                style: TextStyle(fontFamily: "gilroy", color: myWhite),
-              ),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "An unexpected error occurred. Please try again later.",
-              style: TextStyle(fontFamily: "gilroy", color: myWhite),
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        _snack(
+          (data is Map ? data['message'] ?? data['detail'] : null)
+                  ?.toString() ??
+              "Failed to send OTP. Please try again.",
         );
       }
+    } catch (e) {
+      _snack("An unexpected error occurred. Please try again later.");
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -171,180 +231,164 @@ class _WithdrawPageState extends State<WithdrawPage>
     return Material(
       color: Colors.transparent,
       child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.92,
-        ),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
         ),
         child: Skeletonizer(
           enabled: _pageLoading,
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              // Drag handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
+          // Fills the sheet with the keypad at the bottom when there is room,
+          // and scrolls instead of overflowing on short screens.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight.isFinite
+                      ? constraints.maxHeight
+                      : 0,
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Header
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _circularButton(
-                      Icons.arrow_back,
-                      () => Navigator.pop(context),
-                    ),
-                    const Skeleton.keep(
-                      child: Text(
-                        "Bikuza Amafaranga",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: "gilroy-light",
-                          color: myColor,
-                        ),
-                      ),
-                    ),
-                    _circularButton(Icons.help_outline, () {}),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Withdraw info card
-              _buildInfoCard(
-                title: "Withdraw from",
-                content: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: myColor.withValues(alpha: 0.1),
-                      ),
-                      child: Icon(
-                        Icons.account_balance_wallet,
-                        color: myColor,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            "Parent Wallet",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: "gilroy-light",
-                            ),
-                          ),
-                          Text(
-                            "Mobile Money",
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: textGrey,
-                              fontFamily: "gilroy-light",
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              // Amount Section
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                child: IntrinsicHeight(
+                  child: Column(
                     children: [
-                      const Text(
-                        "RWF ",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: "gilroy",
-                          color: Colors.black,
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _circularButton(
+                              Icons.arrow_back,
+                              () => Navigator.pop(context),
+                            ),
+                            const Expanded(
+                              child: Skeleton.keep(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 8),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      "Bikuza Amafaranga",
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: "gilroy-light",
+                                        color: myColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            _circularButton(Icons.help_outline, () {}),
+                          ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      // Where the money goes
+                      _buildInfoCard(
+                        title: "Withdraw to",
+                        content: _buildMethodPicker(),
+                      ),
+                      const Spacer(),
+                      // Amount Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Text(
+                                "RWF ",
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: "gilroy",
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Text(
+                                _formatCurrency(_amount),
+                                style: const TextStyle(
+                                  fontSize: 56,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: "gilroy",
+                                  color: myColor,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              // Cursor
+                              if (!_pageLoading)
+                                Container(
+                                  width: 3,
+                                  height: 50,
+                                  color: limeGreen,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        _formatCurrency(_amount),
+                        "Balance: ${_formatCurrency(_balance.toStringAsFixed(0))} RWF",
                         style: const TextStyle(
-                          fontSize: 56,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: "gilroy",
-                          color: myColor,
+                          fontSize: 13,
+                          color: textGrey,
+                          fontFamily: "gilroy-light",
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      // Cursor
-                      if (!_pageLoading)
-                        Container(width: 3, height: 50, color: limeGreen),
+                      const Spacer(),
+                      const SizedBox(height: 16),
+                      // Custom Keyboard
+                      _buildKeyboard(),
+                      // Withdraw Button
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 60,
+                          child: Skeleton.keep(
+                            child: ElevatedButton(
+                              onPressed: (isLoading || _pageLoading)
+                                  ? null
+                                  : _requestOtpAndShowDialog,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: myColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: isLoading
+                                  ? LoadingAnimationWidget.staggeredDotsWave(
+                                      color: Colors.white,
+                                      size: 30,
+                                    )
+                                  : const Text(
+                                      "Bikuza cash",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: "gilroy-light",
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                     ],
                   ),
                 ),
               ),
-              const Spacer(),
-              const SizedBox(height: 16),
-              // Custom Keyboard
-              _buildKeyboard(),
-              // Withdraw Button
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: Skeleton.keep(
-                    child: ElevatedButton(
-                      onPressed: (isLoading || _pageLoading)
-                          ? null
-                          : _requestOtpAndShowDialog,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: myColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: isLoading
-                          ? LoadingAnimationWidget.staggeredDotsWave(
-                              color: Colors.white,
-                              size: 30,
-                            )
-                          : const Text(
-                              "Bikuza cash",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "gilroy-light",
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
+            ),
           ),
         ),
       ),
@@ -363,6 +407,124 @@ class _WithdrawPageState extends State<WithdrawPage>
             border: Border.all(color: Colors.grey[200]!),
           ),
           child: Icon(icon, size: 20, color: myColor),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMethodPicker() {
+    if (_methods.isEmpty) {
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              _optionsError.isNotEmpty ? _optionsError : "Mobile Money",
+              style: const TextStyle(
+                fontSize: 14,
+                color: textGrey,
+                fontFamily: "gilroy-light",
+              ),
+            ),
+          ),
+          if (_optionsError.isNotEmpty)
+            TextButton(onPressed: _loadOptions, child: const Text("Retry")),
+        ],
+      );
+    }
+
+    final selected = _selected;
+    String detail;
+    if (selected.isEmpty) {
+      detail = (_methods.first['reason'] ?? '').toString();
+    } else if (selected['method'] == 'MOMO') {
+      final network = (selected['network'] ?? '').toString();
+      final where =
+          "${selected['phone'] ?? ''}${network.isNotEmpty ? ' · $network' : ''}";
+      detail = selected['needs_approval'] == true
+          ? "$where\n${selected['note'] ?? ''}"
+          : "$where · instant";
+    } else {
+      detail = (selected['note'] ?? '').toString();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (final m in _methods) ...[
+              if (m != _methods.first) const SizedBox(width: 10),
+              Expanded(child: _methodChip(m)),
+            ],
+          ],
+        ),
+        if (detail.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            detail,
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: textGrey,
+              fontFamily: "gilroy-light",
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _methodChip(Map<String, dynamic> m) {
+    final value = m['method'] as String? ?? '';
+    final available = m['available'] == true;
+    final isSelected = _method == value;
+    final isMomo = value == 'MOMO';
+    final color = !available
+        ? Colors.grey[400]!
+        : isSelected
+        ? Colors.white
+        : deepNavy;
+    return GestureDetector(
+      onTap: () {
+        if (!available) {
+          final reason = (m['reason'] ?? '').toString();
+          if (reason.isNotEmpty) _snack(reason);
+          return;
+        }
+        HapticFeedback.selectionClick();
+        setState(() => _method = value);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? myColor : softGrey,
+          borderRadius: BorderRadius.circular(14),
+          border: isSelected ? null : Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isMomo
+                  ? Icons.phone_android_rounded
+                  : Icons.account_balance_rounded,
+              size: 18,
+              color: color,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                isMomo ? "Mobile Money" : "Bank",
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: "gilroy",
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -486,6 +648,11 @@ class OtpDialog extends StatefulWidget {
   final double amount;
   final backendClient app;
   final String phone;
+  final String method; // "MOMO" | "BANK"
+  final Map<String, String>? bankDetails;
+
+  /// Set to withdraw from this student's card balance instead of the wallet.
+  final String? studentId;
 
   const OtpDialog({
     super.key,
@@ -493,6 +660,9 @@ class OtpDialog extends StatefulWidget {
     required this.amount,
     required this.app,
     required this.phone,
+    this.method = "MOMO",
+    this.bankDetails,
+    this.studentId,
   });
 
   @override
@@ -544,32 +714,49 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
     try {
       final xtoken = await widget.app.csrfToken();
       final otpCode = otpDigits.join("");
-      final tempStorage = await SharedPreferences.getInstance();
-      final phone = tempStorage.getString("phonenumber");
+      final bank = widget.bankDetails;
 
-      final res = await widget.app.walletWithdraw(
-        xtoken.data['csrf_token'],
-        widget.token,
-        widget.amount,
-        otpCode,
-        phone!,
-      );
+      final csrf = xtoken.data['csrf_token']?.toString() ?? "";
+      final res = widget.studentId != null
+          ? await widget.app.withdrawFromStudent(
+              xtoken: csrf,
+              token: widget.token,
+              studentId: widget.studentId!,
+              amountRwf: widget.amount.round(),
+              otpCode: otpCode,
+            )
+          : await widget.app.withdrawFromWallet(
+              xtoken: csrf,
+              token: widget.token,
+              amountRwf: widget.amount.round(),
+              method: widget.method,
+              otpCode: otpCode,
+              bankName: bank?['bank_name'],
+              accountNumber: bank?['account_number'],
+              accountName: bank?['account_name'],
+            );
 
-      print("➡️ Withdraw Response: $res");
-
-      final int statusCode = res['statusCode'] ?? 500;
-      final data = res['data'] ?? {};
-      final bool success = data['success'] ?? false;
-      final String responsecode = data['responsecode'] ?? '';
-      String message = data['message'] ?? "Kubikuza byanze. Ongera ugerageze.";
+      final int statusCode = res.statusCode ?? 500;
+      final data = res.data is Map
+          ? Map<String, dynamic>.from(res.data as Map)
+          : <String, dynamic>{};
+      final bool success = data['success'] == true;
+      final String responsecode = (data['code'] ?? '').toString();
+      final String message =
+          (data['message'] ?? data['detail'] ?? '').toString().isNotEmpty
+          ? (data['message'] ?? data['detail']).toString()
+          : "Kubikuza byanze. Ongera ugerageze.";
 
       if (mounted) {
         Navigator.of(context).pop(); // Close OTP dialog
       }
 
-      // Show beautiful result dialog
       if (success && statusCode == 200) {
-        _showSuccessDialog(message, data);
+        _showSuccessDialog(message, {
+          ...data,
+          "transactionid": data['reference_id'],
+          "pending": data['withdrawal_status'] == 'PENDING',
+        });
       } else {
         _showErrorDialog(message, responsecode, statusCode);
       }
@@ -610,105 +797,108 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: successGreen.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.check_circle,
-                    color: successGreen,
-                    size: 64,
-                  ),
-                ),
-                SizedBox(height: 24),
-                Text(
-                  "Byakunze!",
-                  style: TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: successGreen,
-                  ),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 16,
-                    color: deepNavy,
-                    height: 1.5,
-                  ),
-                ),
-                if (data['transactionid'] != null) ...[
-                  SizedBox(height: 16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: lightBlue,
-                      borderRadius: BorderRadius.circular(12),
+                      color: successGreen.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
                     ),
-                    child: Column(
-                      children: [
-                        Text(
-                          "Transaction ID",
-                          style: TextStyle(
-                            fontFamily: "gilroy-light",
-                            fontSize: 12,
-                            color: softGray,
+                    child: Icon(
+                      Icons.check_circle,
+                      color: successGreen,
+                      size: 64,
+                    ),
+                  ),
+                  SizedBox(height: 24),
+                  Text(
+                    data['pending'] == true ? "Ubusabe bwakiriwe" : "Byakunze!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: "gilroy-light",
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: successGreen,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: "gilroy-light",
+                      fontSize: 16,
+                      color: deepNavy,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (data['transactionid'] != null) ...[
+                    SizedBox(height: 16),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: lightBlue,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            "Transaction ID",
+                            style: TextStyle(
+                              fontFamily: "gilroy-light",
+                              fontSize: 12,
+                              color: softGray,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          data['transactionid'],
-                          style: TextStyle(
-                            fontFamily: "gilroy-light",
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: myColor,
+                          SizedBox(height: 4),
+                          Text(
+                            data['transactionid'],
+                            style: TextStyle(
+                              fontFamily: "gilroy-light",
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: myColor,
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: successGreen,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      ],
+                        elevation: 0,
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => DashboardNav()),
+                        );
+                      },
+                      child: Text(
+                        "Sawa",
+                        style: TextStyle(
+                          fontFamily: "gilroy-light",
+                          color: myWhite,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ],
-                SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: successGreen,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => DashboardNav()),
-                      );
-                    },
-                    child: Text(
-                      "Sawa",
-                      style: TextStyle(
-                        fontFamily: "gilroy-light",
-                        color: myWhite,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );
@@ -729,7 +919,7 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
       errorIcon = Icons.access_time;
       errorColor = warningYellow;
       title = "Igihe Cyarangiye";
-    } else if (errorCode == "1108") {
+    } else if (errorCode == "1108" || errorCode == "INSUFFICIENT_BALANCE") {
       errorIcon = Icons.account_balance_wallet_outlined;
       errorColor = Colors.orange;
       title = "Amafaranga Ntahagije";
@@ -754,120 +944,125 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: errorColor.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(errorIcon, color: errorColor, size: 64),
-                ),
-                SizedBox(height: 24),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: errorColor,
-                  ),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: "gilroy-light",
-                    fontSize: 16,
-                    color: deepNavy,
-                    height: 1.5,
-                  ),
-                ),
-                if (errorCode.isNotEmpty) ...[
-                  SizedBox(height: 16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: errorColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      "Code: $errorCode",
-                      style: TextStyle(
-                        fontFamily: "gilroy-light",
-                        fontSize: 12,
-                        color: errorColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Icon(errorIcon, color: errorColor, size: 64),
+                  ),
+                  SizedBox(height: 24),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: "gilroy-light",
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: errorColor,
                     ),
                   ),
-                ],
-                SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: softGray, width: 1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => DashboardNav()),
-                          );
-                        },
-                        child: Text(
-                          "Sohoka",
-                          style: TextStyle(
-                            fontFamily: "gilroy-light",
-                            color: softGray,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                  SizedBox(height: 12),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: "gilroy-light",
+                      fontSize: 16,
+                      color: deepNavy,
+                      height: 1.5,
                     ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: myColor,
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          Future.delayed(Duration(milliseconds: 300), () {
-                            if (mounted) {
-                              confirmWithdraw();
-                            }
-                          });
-                        },
-                        child: Text(
-                          "Ongera Ugerageze",
-                          style: TextStyle(
-                            fontFamily: "gilroy-light",
-                            color: myWhite,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                  ),
+                  if (errorCode.isNotEmpty) ...[
+                    SizedBox(height: 16),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: errorColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        "Code: $errorCode",
+                        style: TextStyle(
+                          fontFamily: "gilroy-light",
+                          fontSize: 12,
+                          color: errorColor,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ],
-                ),
-              ],
+                  SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: softGray, width: 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (_) => DashboardNav()),
+                            );
+                          },
+                          child: Text(
+                            "Sohoka",
+                            style: TextStyle(
+                              fontFamily: "gilroy-light",
+                              color: softGray,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: myColor,
+                            padding: EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            Future.delayed(Duration(milliseconds: 300), () {
+                              if (mounted) {
+                                confirmWithdraw();
+                              }
+                            });
+                          },
+                          child: Text(
+                            "Ongera Ugerageze",
+                            style: TextStyle(
+                              fontFamily: "gilroy-light",
+                              color: myWhite,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -897,145 +1092,337 @@ class _OtpDialogState extends State<OtpDialog> with TickerProviderStateMixin {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 5,
-              width: 50,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              "Enter OTP to Confirm",
-              style: TextStyle(
-                fontFamily: "gilroy",
-                fontSize: isSmallScreen ? 16 : 18,
-                fontWeight: FontWeight.bold,
-                color: myColor,
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Modern OTP Input Boxes
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(4, (index) {
-                return SizedBox(
-                  width: isSmallScreen ? 45 : 50,
-                  height: isSmallScreen ? 45 : 50,
-                  child: TextField(
-                    focusNode: focusNodes[index],
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    maxLength: 1,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: TextStyle(
-                      fontFamily: "gilroy",
-                      fontSize: isSmallScreen ? 18 : 20,
-                      color: myColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    onChanged: (val) {
-                      otpDigits[index] = val;
-                      if (val.isNotEmpty && index < 3) {
-                        if (mounted) {
-                          FocusScope.of(
-                            context,
-                          ).requestFocus(focusNodes[index + 1]);
-                        }
-                      } else if (val.isEmpty && index > 0) {
-                        if (mounted) {
-                          FocusScope.of(
-                            context,
-                          ).requestFocus(focusNodes[index - 1]);
-                        }
-                      }
-                      setState(() {}); // Update button state
-                    },
-                    decoration: InputDecoration(
-                      counterText: "",
-                      filled: true,
-                      fillColor: myColor.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: focusNodes[index].hasFocus
-                              ? myColor
-                              : myColor.withValues(alpha: 0.3),
-                          width: focusNodes[index].hasFocus ? 2 : 1,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: myColor.withValues(alpha: 0.3),
-                          width: 1,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: myColor, width: 2),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 20),
-            // Status Message
-            if (statusMessage != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  statusMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: "gilroy",
-                    color: statusMessage!.startsWith("[*]")
-                        ? Colors.green
-                        : Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: isSmallScreen ? 12 : 14,
-                  ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 5,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-            const SizedBox(height: 20),
-            // Confirm Button or Loader
-            isProcessing
-                ? LoadingAnimationWidget.staggeredDotsWave(
-                    color: myColor,
-                    size: isSmallScreen ? 35 : 40,
-                  )
-                : SizedBox(
-                    width: double.infinity,
+              const SizedBox(height: 20),
+              Text(
+                "Enter OTP to Confirm",
+                style: TextStyle(
+                  fontFamily: "gilroy",
+                  fontSize: isSmallScreen ? 16 : 18,
+                  fontWeight: FontWeight.bold,
+                  color: myColor,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Modern OTP Input Boxes
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(4, (index) {
+                  return Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: SizedBox(
+                        width: isSmallScreen ? 45 : 50,
+                        height: isSmallScreen ? 45 : 50,
+                        child: TextField(
+                          focusNode: focusNodes[index],
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          maxLength: 1,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          style: TextStyle(
+                            fontFamily: "gilroy",
+                            fontSize: isSmallScreen ? 18 : 20,
+                            color: myColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onChanged: (val) {
+                            otpDigits[index] = val;
+                            if (val.isNotEmpty && index < 3) {
+                              if (mounted) {
+                                FocusScope.of(
+                                  context,
+                                ).requestFocus(focusNodes[index + 1]);
+                              }
+                            } else if (val.isEmpty && index > 0) {
+                              if (mounted) {
+                                FocusScope.of(
+                                  context,
+                                ).requestFocus(focusNodes[index - 1]);
+                              }
+                            }
+                            setState(() {}); // Update button state
+                          },
+                          decoration: InputDecoration(
+                            counterText: "",
+                            filled: true,
+                            fillColor: myColor.withValues(alpha: 0.05),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: focusNodes[index].hasFocus
+                                    ? myColor
+                                    : myColor.withValues(alpha: 0.3),
+                                width: focusNodes[index].hasFocus ? 2 : 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: myColor.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: myColor, width: 2),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 20),
+              // Status Message
+              if (statusMessage != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    statusMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: "gilroy",
+                      color: statusMessage!.startsWith("[*]")
+                          ? Colors.green
+                          : Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: isSmallScreen ? 12 : 14,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 20),
+              // Confirm Button or Loader
+              isProcessing
+                  ? LoadingAnimationWidget.staggeredDotsWave(
+                      color: myColor,
+                      size: isSmallScreen ? 35 : 40,
+                    )
+                  : SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: myColor,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 4,
+                          shadowColor: myColor.withValues(alpha: 0.3),
+                        ),
+                        onPressed: otpDigits.join("").length == 4
+                            ? confirmWithdraw
+                            : null,
+                        child: Text(
+                          "Confirm Withdrawal",
+                          style: TextStyle(
+                            fontFamily: "gilroy",
+                            color: myWhite,
+                            fontSize: isSmallScreen ? 14 : 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Collects where a bank withdrawal should be sent.
+/// Pops with `{bank_name, account_number, account_name}` or null on cancel.
+class BankDetailsDialog extends StatefulWidget {
+  const BankDetailsDialog({super.key});
+
+  @override
+  State<BankDetailsDialog> createState() => _BankDetailsDialogState();
+}
+
+class _BankDetailsDialogState extends State<BankDetailsDialog> {
+  static const _banks = [
+    "Bank of Kigali",
+    "Equity Bank",
+    "I&M Bank",
+    "BPR Bank",
+    "Access Bank",
+    "Ecobank",
+    "NCBA Bank",
+    "GT Bank",
+    "Cogebanque",
+    "Unguka Bank",
+    "Zigama CSS",
+  ];
+
+  final _formKey = GlobalKey<FormState>();
+  final _accountNumber = TextEditingController();
+  final _accountName = TextEditingController();
+  String? _bank;
+
+  @override
+  void dispose() {
+    _accountNumber.dispose();
+    _accountName.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _decoration(String label) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(fontFamily: "gilroy-light"),
+    filled: true,
+    fillColor: myColor.withValues(alpha: 0.04),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: myColor.withValues(alpha: 0.3)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: myColor.withValues(alpha: 0.3)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: myColor, width: 2),
+    ),
+  );
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    Navigator.of(context).pop({
+      "bank_name": _bank!,
+      "account_number": _accountNumber.text.replaceAll(RegExp(r'[\s-]'), ''),
+      "account_name": _accountName.text.trim(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: myWhite,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                "Bank account",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: "gilroy",
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: myColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "You paid by card, so we send your withdrawal to a bank account. Our team usually sends it within 1–2 business days.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: "gilroy-light",
+                  fontSize: 13,
+                  color: textGrey,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 18),
+              DropdownButtonFormField<String>(
+                initialValue: _bank,
+                isExpanded: true,
+                decoration: _decoration("Bank"),
+                items: [
+                  for (final b in _banks)
+                    DropdownMenuItem(value: b, child: Text(b)),
+                ],
+                onChanged: (v) => setState(() => _bank = v),
+                validator: (v) => v == null ? "Choose your bank" : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _accountNumber,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9\s-]')),
+                ],
+                decoration: _decoration("Account number"),
+                validator: (v) {
+                  final digits = (v ?? '').replaceAll(RegExp(r'[\s-]'), '');
+                  if (digits.length < 5 || digits.length > 34) {
+                    return "Enter a valid account number";
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _accountName,
+                textCapitalization: TextCapitalization.words,
+                decoration: _decoration("Account holder name"),
+                validator: (v) => (v ?? '').trim().length < 3
+                    ? "Enter the name on the account"
+                    : null,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text(
+                        "Cancel",
+                        style: TextStyle(fontFamily: "gilroy", color: softGray),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
                     child: ElevatedButton(
+                      onPressed: _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: myColor,
+                        foregroundColor: myWhite,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 4,
-                        shadowColor: myColor.withValues(alpha: 0.3),
+                        elevation: 0,
                       ),
-                      onPressed: otpDigits.join("").length == 4
-                          ? confirmWithdraw
-                          : null,
-                      child: Text(
-                        "Confirm Withdrawal",
+                      child: const Text(
+                        "Continue",
                         style: TextStyle(
                           fontFamily: "gilroy",
-                          color: myWhite,
-                          fontSize: isSmallScreen ? 14 : 16,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

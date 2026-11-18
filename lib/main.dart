@@ -692,6 +692,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: 'kaascan',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        // Gilroy for every text that does not name its own font.
+        fontFamily: 'Gilroy',
       ),
       home: Splashscreen(),
     );

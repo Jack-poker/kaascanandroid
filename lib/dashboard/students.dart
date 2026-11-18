@@ -15,6 +15,8 @@ import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import 'package:kaascan/components/card_deposit.dart';
+import 'package:kaascan/components/student_withdraw.dart';
 import 'package:kaascan/dashboard/send_money_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/cupertino.dart';
@@ -1477,13 +1479,26 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
         child: const Icon(Icons.more_horiz, color: myColor, size: 18),
       ),
       onSelected: (value) {
-        if (value == 'reset') {
+        if (value == 'withdraw') {
+          _showStudentWithdraw();
+        } else if (value == 'reset') {
           _handleResetPin();
         } else if (value == 'remove') {
           _showRemoveStudentDialog();
         }
       },
       itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'withdraw',
+          child: Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  size: 20, color: myColor),
+              SizedBox(width: 8),
+              Text('Withdraw'),
+            ],
+          ),
+        ),
         if (_canResetPin)
           const PopupMenuItem(
             value: 'reset',
@@ -1507,6 +1522,21 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
         ),
       ],
     );
+  }
+
+  Future<void> _showStudentWithdraw() async {
+    if (listStudent.isEmpty || selectedStudentIndex >= listStudent.length) {
+      return;
+    }
+    final student =
+        Map<String, dynamic>.from(listStudent[selectedStudentIndex] as Map);
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StudentWithdrawSheet(student: student),
+    );
+    if (mounted) await _initProfile();
   }
 
   void _handleResetPin() {
@@ -2171,18 +2201,41 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return SendMoneySheet(
-          student: student,
-          parentBalance: accountBalance,
-          parentName: accountName,
-          onTransferSuccess: () {
-            _initProfile();
-            _fetchTransactions();
-          },
-        );
-      },
+      builder: (ctx) => _StudentPaymentPicker(
+        student: student,
+        onMoMo: () {
+          Navigator.pop(ctx);
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (_) => SendMoneySheet(
+              student: student,
+              parentBalance: accountBalance,
+              parentName: accountName,
+              onTransferSuccess: () {
+                _initProfile();
+                _fetchTransactions();
+              },
+            ),
+          );
+        },
+        onCard: () {
+          Navigator.pop(ctx);
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (_) => CardDepositSheet(
+              student: student,
+              onSuccess: () {
+                _initProfile();
+                _fetchTransactions();
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -2435,6 +2488,151 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                   },
                 ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Payment method picker used by the Students screen ───────────────────────
+
+class _StudentPaymentPicker extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final VoidCallback onMoMo;
+  final VoidCallback onCard;
+
+  const _StudentPaymentPicker({
+    required this.student,
+    required this.onMoMo,
+    required this.onCard,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = student["student_name"] ?? "Student";
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "Top up $name",
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              fontFamily: "gilroy",
+              color: Color(0xFF11142D),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Choose how you'd like to pay",
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF9CA3AF),
+              fontFamily: "gilroy-light",
+            ),
+          ),
+          const SizedBox(height: 28),
+          _tile(
+            context,
+            icon: CupertinoIcons.phone,
+            title: "Mobile Money",
+            subtitle: "MTN / Airtel — from your wallet",
+            color: const Color(0xFFFFB800),
+            onTap: onMoMo,
+          ),
+          const SizedBox(height: 14),
+          _tile(
+            context,
+            icon: CupertinoIcons.creditcard,
+            title: "VISA / Mastercard",
+            subtitle: "Pay directly with a bank card",
+            color: const Color(0xFF0022FF),
+            onTap: onCard,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: "gilroy",
+                      color: Color(0xFF11142D),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                      fontFamily: "gilroy-light",
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(CupertinoIcons.chevron_right, color: Colors.grey[400], size: 18),
+          ],
+        ),
       ),
     );
   }

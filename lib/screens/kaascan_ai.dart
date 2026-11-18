@@ -21,6 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kaascan/Api/client.dart';
 import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:kaascan/components/agentic_ui.dart';
+import 'package:kaascan/components/card_payment_webview.dart';
 import 'package:kaascan/components/chat_bubble.dart';
 import 'package:kaascan/components/typing_indicator.dart';
 import 'package:kaascan/dashboard/home.dart'
@@ -625,6 +626,9 @@ class _KaascanState extends State<Kaascan> {
     if (studentId.isEmpty || charge <= 0) {
       return const AgenticTopupResult(ok: false);
     }
+    if (block['method'] == 'card') {
+      return _confirmCardTopup(block, studentId, charge.ceil());
+    }
 
     try {
       final client = backendClient();
@@ -663,6 +667,96 @@ class _KaascanState extends State<Kaascan> {
       );
     } catch (e) {
       debugPrint("[TOPUP] confirm failed: $e");
+      return const AgenticTopupResult(ok: false);
+    }
+  }
+
+  /// VISA / Mastercard top-up from a `topup_confirm` block with
+  /// `method: card`: starts a Soila card payment for [charge] RWF and opens
+  /// the secure card page. Card details never pass through the chat.
+  Future<AgenticTopupResult> _confirmCardTopup(
+    Map<dynamic, dynamic> block,
+    String studentId,
+    int charge,
+  ) async {
+    final student = block['student'];
+    final studentName =
+        student is Map ? student['student_name']?.toString() : null;
+    final channel = (block['channel']?.toString() ?? '').isNotEmpty
+        ? block['channel'].toString()
+        : 'VISA';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString("login_token");
+      if (token == null || token.isEmpty) {
+        return const AgenticTopupResult(ok: false);
+      }
+
+      final client = backendClient();
+      final res = await client.cardPaymentInitiate(
+        token: token,
+        amountRwf: charge,
+        studentId: studentId,
+        channel: channel,
+        description: "Top-up for ${studentName ?? 'student'}",
+      );
+      final data = res.data;
+      final redirectUrl = data is Map ? data['redirect_url']?.toString() : null;
+      final referenceId = data is Map ? data['reference_id']?.toString() : null;
+      if (res.statusCode != 200 || redirectUrl == null || referenceId == null) {
+        return AgenticTopupResult(
+          ok: false,
+          message: data is Map
+              ? (data['detail'] ?? data['message'] ?? '').toString()
+              : '',
+        );
+      }
+      if (!mounted) return const AgenticTopupResult(ok: false);
+
+      final result = await Navigator.push<CardPaymentResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CardPaymentWebView(
+            redirectUrl: redirectUrl,
+            referenceId: referenceId,
+            studentName: studentName,
+            amountRwf: charge,
+            channel: channel,
+          ),
+        ),
+      );
+
+      var status = result?.status ?? 'PENDING';
+      if (status == 'CANCELLED' && result?.completed == false) {
+        return const AgenticTopupResult(
+          ok: false,
+          message: "The card payment was not completed.",
+        );
+      }
+      if (status != 'SUCCESS' && status != 'FAILED') {
+        // The return URL does not always carry the outcome; ask the backend.
+        final check = await client.cardPaymentStatus(referenceId);
+        final checkData = check.data;
+        if (checkData is Map) {
+          status = (checkData['status']?.toString() ?? status).toUpperCase();
+        }
+      }
+      if (status == 'SUCCESS') {
+        return const AgenticTopupResult(ok: true);
+      }
+      if (status == 'FAILED' || status == 'CANCELLED') {
+        return const AgenticTopupResult(
+          ok: false,
+          message: "The bank declined the card payment.",
+        );
+      }
+      return const AgenticTopupResult(
+        ok: true,
+        message:
+            "Waiting for the bank to confirm. The card will be credited automatically.",
+      );
+    } catch (e) {
+      debugPrint("[TOPUP] card confirm failed: $e");
       return const AgenticTopupResult(ok: false);
     }
   }

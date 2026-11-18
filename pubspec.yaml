@@ -8,7 +8,7 @@ dependencies:
   flutter:
     sdk: flutter
   qaad_shared:
-    path: /home/quantumbytes/Documents/Qaad/qaad_sdk/
+    path: /home/qemmanuel/Documents/kaascan/kaascanandroid/qaad_sdk
 
   cupertino_icons: ^1.0.8
   splasher: ^0.1.1
@@ -47,6 +47,7 @@ dependencies:
   permission_handler: ^12.0.1
   change_app_package_name: ^1.5.0
   url_launcher: ^6.3.2
+  webview_flutter: ^4.10.0
   flutter_zxing: ^3.1.0
   image: ^4.0.0
 
@@ -71,10 +72,6 @@ dependencies:
  
 
 
-
-dependency_overrides:
-  ntfy:
-    path: packages/ntfy
 
 dev_dependencies:
   flutter_test:
@@ -119,6 +116,15 @@ flutter:
     - family: gilroy-light
       fonts:
         - asset: fonts/Gilroy-Light.otf
+
+    # The app-wide default (ThemeData.fontFamily): Light for regular text,
+    # SemiBold for bold, so Flutter never has to fake a bold weight.
+    - family: Gilroy
+      fonts:
+        - asset: fonts/Gilroy-Light.otf
+          weight: 300
+        - asset: fonts/gilroy-semibold.ttf
+          weight: 600
 
     - family: minigap
       fonts:

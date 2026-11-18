@@ -17,6 +17,7 @@ import 'package:kaascan/components/addStudent.dart' hide lightBlue, myOpblue;
 import 'package:kaascan/components/deposit.dart' hide lightBlue, myOpblue;
 import 'package:kaascan/components/depositProcess.dart';
 import 'package:kaascan/components/withdraw.dart' hide lightBlue, myOpblue;
+import 'package:kaascan/components/card_deposit.dart';
 import 'package:kaascan/components/favorite_students_widget.dart';
 import 'package:kaascan/dashboard/send_money_ui.dart';
 import 'package:kaascan/dashboard/students.dart';
@@ -595,6 +596,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 fontWeight: FontWeight.w900,
                 fontFamily: 'gilroy',
                 letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(30),
+              onTap: _appLoading ? null : _showModernWithdraw,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(CupertinoIcons.arrow_up_right_circle_fill,
+                        size: 18, color: myColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      languageService.t('home.withdraw',
+                          fallback: "Withdraw"),
+                      style: const TextStyle(
+                        color: myColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'gilroy',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1213,18 +1245,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _showStudentDeposit(Map<String, dynamic> student) async {
-    showModalBottomSheet(
+    // Show payment method picker first
+    await showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => SendMoneySheet(
+      builder: (ctx) => _PaymentMethodPicker(
         student: student,
-        parentBalance: accountBalance,
-        parentName: languageService.t('common.parent', fallback: "Parent"),
-        onTransferSuccess: () {
-          // Refresh data
-          _initProfile();
-          _fetchTransactions();
+        onMoMo: () {
+          Navigator.pop(ctx);
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => SendMoneySheet(
+              student: student,
+              parentBalance: accountBalance,
+              parentName: languageService.t('common.parent', fallback: "Parent"),
+              onTransferSuccess: () {
+                _initProfile();
+                _fetchTransactions();
+              },
+            ),
+          );
+        },
+        onCard: () {
+          Navigator.pop(ctx);
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => CardDepositSheet(
+              student: student,
+              onSuccess: () {
+                _initProfile();
+                _fetchTransactions();
+              },
+            ),
+          );
         },
       ),
     );
@@ -1864,8 +1921,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _showModernWithdraw() {
-    showCupertinoModalBottomSheet(
+  Future<void> _showModernWithdraw() async {
+    await showCupertinoModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
@@ -1891,6 +1948,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+    if (mounted) {
+      await _initProfile();
+      await _fetchTransactions();
+    }
   }
 
   Widget _buildStudentsSection() {
@@ -2309,6 +2370,151 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Payment method picker ─────────────────────────────────────────────────────
+
+class _PaymentMethodPicker extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final VoidCallback onMoMo;
+  final VoidCallback onCard;
+
+  const _PaymentMethodPicker({
+    required this.student,
+    required this.onMoMo,
+    required this.onCard,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = student["student_name"] ?? "Student";
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "Top up $name",
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              fontFamily: "gilroy",
+              color: Color(0xFF11142D),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Choose how you'd like to pay",
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF9CA3AF),
+              fontFamily: "gilroy-light",
+            ),
+          ),
+          const SizedBox(height: 28),
+          _methodTile(
+            context,
+            icon: CupertinoIcons.phone,
+            title: "Mobile Money",
+            subtitle: "MTN / Airtel — from your wallet",
+            color: const Color(0xFFFFB800),
+            onTap: onMoMo,
+          ),
+          const SizedBox(height: 14),
+          _methodTile(
+            context,
+            icon: CupertinoIcons.creditcard,
+            title: "VISA / Mastercard",
+            subtitle: "Pay directly with a bank card",
+            color: const Color(0xFF0022FF),
+            onTap: onCard,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _methodTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: "gilroy",
+                      color: Color(0xFF11142D),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                      fontFamily: "gilroy-light",
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(CupertinoIcons.chevron_right, color: Colors.grey[400], size: 18),
+          ],
+        ),
       ),
     );
   }

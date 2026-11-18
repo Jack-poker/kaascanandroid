@@ -811,6 +811,145 @@ Future<Response> Login(
       "[FAIL] GET KYC STATUS",
     );
   }
+
+  // ── Card payments (Soila Pay — VISA / Mastercard) ──────────────────────────
+
+  Future<Response> cardPaymentInitiate({
+    required String token,
+    required int amountRwf,
+    required String studentId,
+    String channel = "VISA",
+    String? description,
+  }) async {
+    return _safeRequest(
+      () => api_Call.post(
+        "$base_Url/payment/card/initiate",
+        options: Options(headers: {"authorization": "Bearer $token"}),
+        data: {
+          "amount_rwf": amountRwf,
+          "student_id": studentId,
+          "channel": channel,
+          if (description != null) "description": description,
+        },
+      ),
+      "[FAIL] CARD PAYMENT INITIATE",
+    );
+  }
+
+  Future<Response> cardPaymentStatus(String referenceId) async {
+    return _safeRequest(
+      () => api_Call.get("$base_Url/payment/card/status/$referenceId"),
+      "[FAIL] CARD PAYMENT STATUS",
+    );
+  }
+
+  // ── Parent wallet withdrawals (Mobile Money / bank) ────────────────────────
+
+  // 4xx answers carry a message the parent should read, so they are returned
+  // as responses instead of being replaced by _safeRequest's generic error.
+  Options _withdrawOptions(String token, {String? xtoken}) => Options(
+        headers: {
+          "authorization": "Bearer $token",
+          if (xtoken != null) "x-csrf-token": xtoken,
+          "Content-Type": "application/json",
+        },
+        validateStatus: (s) => s != null && s < 500,
+      );
+
+  Future<Response> withdrawOptions(String token) async {
+    return _safeRequest(
+      () => api_Call.get(
+        "$base_Url/wallet/withdraw/options",
+        options: _withdrawOptions(token),
+      ),
+      "[FAIL] WITHDRAW OPTIONS",
+    );
+  }
+
+  Future<Response> sendWithdrawOtp(
+    String xtoken,
+    String token,
+    double amount, {
+    String? studentId,
+  }) async {
+    return _safeRequest(
+      () => api_Call.post(
+        "$base_Url/wallet/withdraw/otp",
+        options: _withdrawOptions(token, xtoken: xtoken),
+        data: {
+          "amount": amount,
+          "csrf_token": xtoken,
+          if (studentId != null) "student_id": studentId,
+        },
+      ),
+      "[FAIL] WITHDRAW OTP",
+    );
+  }
+
+  Future<Response> studentWithdrawOptions(String token, String studentId) async {
+    return _safeRequest(
+      () => api_Call.get(
+        "$base_Url/student/$studentId/withdraw/options",
+        options: _withdrawOptions(token),
+      ),
+      "[FAIL] STUDENT WITHDRAW OPTIONS",
+    );
+  }
+
+  Future<Response> withdrawFromStudent({
+    required String xtoken,
+    required String token,
+    required String studentId,
+    required int amountRwf,
+    required String otpCode,
+  }) async {
+    return _safeRequest(
+      () => api_Call.post(
+        "$base_Url/student/$studentId/withdraw",
+        options: _withdrawOptions(token, xtoken: xtoken),
+        data: {"amount_rwf": amountRwf, "otp_code": otpCode, "csrf_token": xtoken},
+      ),
+      "[FAIL] STUDENT WITHDRAW",
+    );
+  }
+
+  Future<Response> withdrawFromWallet({
+    required String xtoken,
+    required String token,
+    required int amountRwf,
+    required String method, // "MOMO" | "BANK"
+    required String otpCode,
+    String? bankName,
+    String? accountNumber,
+    String? accountName,
+  }) async {
+    return _safeRequest(
+      () => api_Call.post(
+        "$base_Url/wallet/withdraw",
+        options: _withdrawOptions(token, xtoken: xtoken),
+        data: {
+          "amount_rwf": amountRwf,
+          "method": method,
+          "otp_code": otpCode,
+          "csrf_token": xtoken,
+          if (bankName != null) "bank_name": bankName,
+          if (accountNumber != null) "account_number": accountNumber,
+          if (accountName != null) "account_name": accountName,
+        },
+      ),
+      "[FAIL] WALLET WITHDRAW",
+    );
+  }
+
+  Future<Response> withdrawStatus(String token, String referenceId) async {
+    return _safeRequest(
+      () => api_Call.get(
+        "$base_Url/wallet/withdraw/$referenceId",
+        options: _withdrawOptions(token),
+      ),
+      "[FAIL] WITHDRAW STATUS",
+    );
+  }
 }
 
 void main() async {

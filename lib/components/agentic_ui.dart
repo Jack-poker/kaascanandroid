@@ -847,6 +847,9 @@ class _TopupConfirmCard extends StatefulWidget {
 class _TopupConfirmCardState extends State<_TopupConfirmCard> {
   _TopupState _state = _TopupState.review;
   String _error = '';
+  String _sentNote = '';
+
+  bool get _isCard => _str(widget.block, 'method') == 'card';
 
   Map<dynamic, dynamic> get _labels => _map(widget.block['labels']);
 
@@ -874,6 +877,7 @@ class _TopupConfirmCardState extends State<_TopupConfirmCard> {
     setState(() {
       _state = result.ok ? _TopupState.sent : _TopupState.failed;
       _error = result.ok ? '' : result.message;
+      _sentNote = result.ok ? result.message : '';
     });
     if (result.ok) {
       HapticFeedback.heavyImpact();
@@ -969,7 +973,9 @@ class _TopupConfirmCardState extends State<_TopupConfirmCard> {
           icon: Icons.check_circle_rounded,
           color: _Palette.success,
           title: _str(_labels, 'request_sent'),
-          detail: _str(_labels, 'approve_on_phone'),
+          detail: _sentNote.isNotEmpty
+              ? _sentNote
+              : _str(_labels, 'approve_on_phone'),
         );
       case _TopupState.cancelled:
         return _outcome(
@@ -1130,8 +1136,10 @@ class _TopupConfirmCardState extends State<_TopupConfirmCard> {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(
-                  Icons.phone_iphone_rounded,
+                Icon(
+                  _isCard
+                      ? Icons.credit_card_rounded
+                      : Icons.phone_iphone_rounded,
                   color: _Palette.muted,
                   size: 18,
                 ),
