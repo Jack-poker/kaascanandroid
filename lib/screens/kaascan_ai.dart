@@ -15,14 +15,21 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pretty_print_json/pretty_print_json.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:qaad_shared/qaad_sdk.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kaascan/Api/client.dart';
 import 'package:kaascan/Auth/unified_auth.dart';
 import 'package:kaascan/components/agentic_ui.dart';
 import 'package:kaascan/components/card_payment_webview.dart';
+import 'package:kaascan/components/chat_auto_scroll.dart';
 import 'package:kaascan/components/chat_bubble.dart';
+import 'package:kaascan/components/soma_robot.dart';
+import 'package:kaascan/components/soma_chat_input.dart';
+import 'package:kaascan/components/soma_chat_background.dart';
+import 'package:kaascan/components/student_message_style.dart';
+import 'package:kaascan/components/soma_nav_connector.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:kaascan/components/typing_indicator.dart';
 import 'package:kaascan/dashboard/home.dart'
     hide
@@ -37,13 +44,26 @@ import 'package:kaascan/dashboard/home.dart'
 import 'package:kaascan/main.dart';
 import 'package:kaascan/provider/values_provider.dart';
 import 'package:kaascan/sdk/kaascan_sdk.dart';
+import 'package:kaascan/services/language_service.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
-import 'package:qaad_shared/qaad_sdk.dart';
 // Optional: if your SDK exposes these, keep them imported here.
 // import 'package:qaad_shared/qaad_sdk.dart';
 
+/// A prompt for Soma to send as if the parent typed it, set by other screens
+/// (e.g. "Add a student"). The chat consumes it and clears it.
+final ValueNotifier<String?> somaPrompt = ValueNotifier<String?>(null);
+
+/// Set by the Messages tab's "Ask Soma": the child's message to explain (see
+/// `messageQuote`). Sent at once as a chip, with no typing in the input.
+final ValueNotifier<Map<String, dynamic>?> somaQuote = ValueNotifier<Map<String, dynamic>?>(null);
+
 class Kaascan extends StatefulWidget {
-  const Kaascan({super.key});
+  const Kaascan({super.key, this.embedded = false, this.onExpand});
+
+  /// Shown in the pop-up sheet over another tab rather than as the AI tab.
+  final bool embedded;
+  /// Embedded only: open the full AI tab.
+  final VoidCallback? onExpand;
 
   @override
   State<Kaascan> createState() => _KaascanState();
@@ -51,6 +71,9 @@ class Kaascan extends StatefulWidget {
 
 class _KaascanState extends State<Kaascan> {
   late final TextEditingController askText = TextEditingController();
+  final List<ChatAttachment> _attachments = [];
+  static const _engineKey = 'soma_engine';
+  SomaEngine _engine = SomaEngine.big;
   bool _isTypingSend = false;
   bool _greetingAdded = false;
 
@@ -87,15 +110,6 @@ class _KaascanState extends State<Kaascan> {
   // OVERLAY
   // ---------------------------------------------------------------------
 
-  void _showStudentOverlay(String photoUrl, String studentName) {
-    if (photoUrl.isEmpty) return;
-    setState(() {
-      _overlayPhotoUrl = photoUrl;
-      _overlayStudentName = studentName;
-      _overlayVisible = true;
-      _overlayInitialized = false;
-    });
-  }
 
   void _dismissStudentOverlay() {
     setState(() {
@@ -125,171 +139,40 @@ class _KaascanState extends State<Kaascan> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: myBlue,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(0)),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ChangeNotifierProvider<ValuesProvider>.value(
+        value: valuesProvider,
+        child: _SomaReportScanSheet(
+          controller: controller,
+          onDetect: (BarcodeCapture capture) {
+            if (settled) return false;
+
+            final frame = capture.image;
+            if (frame == null) {
+              debugPrint('>>> no frame image');
+              return false;
+            }
+
+            final bytes = capture.barcodes.firstOrNull?.rawBytes;
+            if (bytes == null) {
+              debugPrint('>>> not the card QR — retry');
+              return false;
+            }
+
+            settled = true;
+            payload = bytes;
+            debugPrint('>>> card payload: ${bytes.length} bytes');
+
+            try {
+              decodedText = null;
+              debugPrint('>>> decoded length: ${decodedText?.length}');
+            } catch (e, st) {
+              debugPrint('>>> decode failed: $e\n$st');
+            }
+            return true;
+          },
+        ),
       ),
-      builder: (ctx) {
-        const borderColor = Colors.white;
-        const cornerLen = 30.0;
-
-        Widget corner({required bool top, required bool left}) => Container(
-              width: cornerLen,
-              height: cornerLen,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.all(Radius.circular(2)),
-                border: Border(
-                  top: top
-                      ? const BorderSide(color: borderColor, width: 4)
-                      : BorderSide.none,
-                  bottom: !top
-                      ? const BorderSide(color: borderColor, width: 4)
-                      : BorderSide.none,
-                  left: left
-                      ? const BorderSide(color: borderColor, width: 4)
-                      : BorderSide.none,
-                  right: !left
-                      ? const BorderSide(color: borderColor, width: 4)
-                      : BorderSide.none,
-                ),
-              ),
-            );
-
-        return ChangeNotifierProvider<ValuesProvider>.value(
-          value: valuesProvider,
-          child: SizedBox(
-            height: MediaQuery.of(ctx).size.height * 0.6,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (layoutCtx, constraints) {
-                      final scanSize = constraints.biggest.shortestSide * 0.7;
-                      final dimH = (constraints.maxHeight - scanSize) / 2;
-                      final dimW = (constraints.maxWidth - scanSize) / 2;
-
-                      return Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          MobileScanner(
-                            controller: controller,
-                            onDetect: (BarcodeCapture capture) async {
-                              if (settled) return;
-
-                              final frame = capture.image;
-                              if (frame == null) {
-                                debugPrint('>>> no frame image');
-                                return;
-                              }
-
-                              final bytes =
-                                  capture.barcodes.firstOrNull?.rawBytes;
-                              if (bytes == null) {
-                                debugPrint('>>> not the card QR — retry');
-                                return;
-                              }
-
-                              settled = true;
-                              payload = bytes;
-                              debugPrint(
-                                  '>>> card payload: ${bytes.length} bytes');
-
-                              try {
-                                decodedText = decodeCardPayload(bytes);
-                                debugPrint(
-                                    '>>> decoded length: ${decodedText?.length}');
-                              } catch (e, st) {
-                                debugPrint('>>> decode failed: $e\n$st');
-                              }
-
-                              if (ctx.mounted) Navigator.of(ctx).pop();
-                            },
-                            errorBuilder: (context, error) {
-                              debugPrint(
-                                  '>>> scanner error: ${error.errorCode} ${error.errorDetails}');
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                          IgnorePointer(
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  top: 0,
-                                  left: 0,
-                                  right: 0,
-                                  height: dimH,
-                                  child: Container(color: Colors.black54),
-                                ),
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  height: dimH,
-                                  child: Container(color: Colors.black54),
-                                ),
-                                Positioned(
-                                  top: dimH,
-                                  bottom: dimH,
-                                  left: 0,
-                                  width: dimW,
-                                  child: Container(color: Colors.black54),
-                                ),
-                                Positioned(
-                                  top: dimH,
-                                  bottom: dimH,
-                                  right: 0,
-                                  width: dimW,
-                                  child: Container(color: Colors.black54),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(
-                            width: scanSize,
-                            height: scanSize,
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                    top: 0,
-                                    left: 0,
-                                    child: corner(top: true, left: true)),
-                                Positioned(
-                                    top: 0,
-                                    right: 0,
-                                    child: corner(top: true, left: false)),
-                                Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    child: corner(top: false, left: true)),
-                                Positioned(
-                                    bottom: 0,
-                                    right: 0,
-                                    child: corner(top: false, left: false)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
 
     try {
@@ -324,14 +207,15 @@ class _KaascanState extends State<Kaascan> {
     askText.dispose();
     _chatScrollController.dispose();
     _valuesProvider?.removeListener(_onMessagesChanged);
+    somaPrompt.removeListener(_sendSomaPrompt);
+    somaQuote.removeListener(_sendSomaQuote);
     super.dispose();
   }
 
   void _onMessagesChanged() {
     final p = _valuesProvider;
     if (p == null) return;
-    // Scroll on every state change — covers new message AND waiting_ask toggle
-    _scrollToBottom();
+    _sessionId = p.sessionId;
     if (!p.waiting_ask && p.messages.isNotEmpty) {
       _saveCurrentSession(List.from(p.messages));
     }
@@ -349,6 +233,7 @@ class _KaascanState extends State<Kaascan> {
                 'role': m.role,
                 'text': m.text,
                 'ts': m.timestamp.toIso8601String(),
+                if (m.quote != null) 'quote': m.quote,
               })
           .toList();
 
@@ -384,6 +269,21 @@ class _KaascanState extends State<Kaascan> {
     }
   }
 
+  void _startNewChat() {
+    final provider = _valuesProvider;
+    if (provider == null || provider.waiting_ask) return;
+    HapticFeedback.lightImpact();
+    _dismissStudentOverlay();
+    askText.clear();
+    setState(() {
+      _attachments.clear();
+      _focusStudentId = null;
+      _pendingLinkData = null;
+      _pendingStudentResponse = null;
+    });
+    provider.startNewChat();
+  }
+
   void _showHistorySheet() async {
     final history = await _loadHistory();
     if (!mounted) return;
@@ -398,26 +298,12 @@ class _KaascanState extends State<Kaascan> {
     );
   }
 
-  void _scrollToBottom() {
-    // Double post-frame ensures layout is complete before measuring maxScrollExtent
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_chatScrollController.hasClients) {
-          _chatScrollController.animateTo(
-            _chatScrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    });
-  }
-
   Widget _buildUserBubble(ChatMessage msg) {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12, left: 60),
+        constraints: const BoxConstraints(maxWidth: 520),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -428,13 +314,38 @@ class _KaascanState extends State<Kaascan> {
             bottomRight: Radius.circular(4),
           ),
         ),
-        child: Text(
-          msg.text,
-          style: const TextStyle(
-            color: Color(0xFF11142D),
-            fontSize: 15,
-            fontFamily: 'minigap',
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (msg.quote != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: MessageQuoteChip(quote: msg.quote!),
+              ),
+            if (msg.attachments.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(bottom: msg.text.isEmpty ? 0 : 8),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    for (final a in msg.attachments)
+                      AttachmentPreview(attachment: a, size: 72),
+                  ],
+                ),
+              ),
+            if (msg.text.isNotEmpty)
+              Text(
+                msg.text,
+                style: const TextStyle(
+                  color: Color(0xFF11142D),
+                  fontSize: 15,
+                  fontFamily: 'minigap',
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -443,14 +354,68 @@ class _KaascanState extends State<Kaascan> {
   @override
   void initState() {
     super.initState();
-    _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+    final provider = context.read<ValuesProvider>();
+    _sessionId = provider.sessionId;
+    // Reopening an existing chat: show earlier answers as they are instead
+    // of typing them out again.
+    _displayedMessageKeys.addAll(provider.messages.map((m) => m.timestamp));
     _chatScrollController = ScrollController();
     SomaAudio.instance.init();
+    _loadEngine();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _valuesProvider = context.read<ValuesProvider>();
+      _valuesProvider = provider;
       _valuesProvider!.addListener(_onMessagesChanged);
+      somaPrompt.addListener(_sendSomaPrompt);
+      somaQuote.addListener(_sendSomaQuote);
+      _sendSomaPrompt();
+      _sendSomaQuote();
     });
+  }
+
+  void _sendSomaPrompt() {
+    final prompt = somaPrompt.value;
+    final provider = _valuesProvider;
+    if (!mounted || prompt == null || provider == null || _isTypingSend) return;
+    somaPrompt.value = null;
+    _typewriteAndSend(prompt, provider);
+  }
+
+  /// "Ask Soma" on a child's message: the chip goes in as the parent's turn
+  /// and Soma explains the message in the language the child used.
+  Future<void> _sendSomaQuote() async {
+    final quote = somaQuote.value;
+    final provider = _valuesProvider;
+    if (!mounted || quote == null || provider == null || _isTypingSend || provider.waiting_ask) return;
+    somaQuote.value = null;
+    final id = (quote['id'] as num?)?.toInt();
+    if (id == null) return;
+    _dismissStudentOverlay();
+    final ask = switch (languageService.currentLanguageCode) {
+      'rw' => 'Nsobanurira ubu butumwa',
+      'fr' => 'Explique-moi ce message',
+      _ => 'Explain this message',
+    };
+    final studentId = quote['student_id']?.toString();
+    if (studentId != null && studentId.isNotEmpty) _focusStudentId = studentId;
+    provider.addUserMessage(ask, quote: quote);
+    SomaAudio.instance.onSend();
+    try {
+      final res = await kaascan_sdk().ask_kaascan(
+        ask,
+        focusStudentId: _focusStudentId,
+        engine: _engine.name,
+        studentMessageId: id,
+      );
+      if (res.isEmpty) {
+        provider.addAiError("Habaye ikosa. Ongera ugerageze nyuma.");
+      } else {
+        provider.addAiResponse(res);
+        HapticFeedback.mediumImpact();
+      }
+    } catch (_) {
+      provider.addAiError("Sorry, ntahantu nshobora gufata. Ongera ugerageze.");
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -465,14 +430,17 @@ class _KaascanState extends State<Kaascan> {
     try {
       if (_isTypingSend) return;
 
-      final text = askText.text;
-      if (text.isEmpty) return;
+      final attachments = List<ChatAttachment>.of(_attachments);
+      var text = askText.text.trim();
+      if (text.isEmpty && attachments.isEmpty) return;
+      final displayText = text;
+      if (text.isEmpty) text = 'What can you tell me about this?';
 
       askText.clear();
       FocusScope.of(context).unfocus();
-      setState(() {});
+      setState(() => _attachments.clear());
 
-      provider.addUserMessage(text);
+      provider.addUserMessage(displayText, attachments: attachments);
       SomaAudio.instance.onSend();
 
       if (_isSimulatedAction) {
@@ -552,6 +520,8 @@ class _KaascanState extends State<Kaascan> {
           text,
           focusStudentId: _focusStudentId,
           history: _recentHistory(provider),
+          engine: _engine.name,
+          attachments: _engine == SomaEngine.big ? attachments : const [],
         );
 
         if (res.isEmpty) {
@@ -1116,7 +1086,8 @@ class _KaascanState extends State<Kaascan> {
     }
   }
 
-  Future<void> _linkStudentToAccount(
+  /// Links the child and says so in the chat. True when it worked.
+  Future<bool> _linkStudentToAccount(
     String studentId,
     String studentName,
     String photoUrl,
@@ -1157,7 +1128,7 @@ class _KaascanState extends State<Kaascan> {
       debugPrint(
           "[LINK] Linking student $studentName ($studentId) to parent $parentId");
 
-      await app.registerStudent(
+      final linked = await app.registerStudent(
         xtoken,
         token,
         parentId,
@@ -1169,32 +1140,28 @@ class _KaascanState extends State<Kaascan> {
         studentId,
       );
 
+      final result = linked.data is Map ? linked.data as Map : const {};
+      final message = result['message']?.toString() ?? '';
+      // "Already linked" means this child is on the account: that is the goal.
+      if (result['status'] != 'success' && !message.toLowerCase().contains('already linked')) {
+        throw Exception(message.isEmpty ? 'link refused (${linked.statusCode})' : message);
+      }
       debugPrint("[LINK] Successfully linked student!");
 
       final successResponse = {
         "ask_response":
-            "Ibi bintu nishimiye kubona wowe numwana wawe mbahuje, ariko utaza kwibagirwa ko turi bushyireho umutekano w'umubare banga kuburyo umwana awifashisha mugihe agiye kwishyura. Kanda hano kuri ifoto urebe uko uhindura PIN.",
+            "$studentName yahujwe na konti yawe! Intambwe ikurikira: shyiraho PIN y'ikarita ye, kugira ngo ajye yishyura ku ishuri mu mutekano.",
         "response":
-            "Ibi bintu nishimiye kubona wowe numwana wawe mbahuje, ariko utaza kwibagirwa ko turi bushyireho umutekano w'umubare banga kuburyo umwana awifashisha mugihe agiye kwishyura. Kanda hano kuri ifoto urebe uko uhindura PIN.",
-        "action_word": "hano",
-        "action_message": "NAVIGATE_STUDENTS",
+            "$studentName yahujwe na konti yawe! Intambwe ikurikira: shyiraho PIN y'ikarita ye, kugira ngo ajye yishyura ku ishuri mu mutekano.",
         "_show_guide": true,
         "_guide_student_name": studentName,
       };
       provider.addAiResponse(successResponse);
       HapticFeedback.heavyImpact();
-
-      scaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('✓ $studentName yahujwe na konti yawe!'),
-          backgroundColor: const Color(0xFF065F46),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      return true;
     } catch (e) {
       debugPrint("[LINK ERROR] Linking failed: $e");
-      provider.addAiError("Habaye ikosa. Ongera ugerageze nyuma.");
+      return false;
     }
   }
 
@@ -1256,7 +1223,7 @@ class _KaascanState extends State<Kaascan> {
     final Uint8List payload = message["_report_payload"] as Uint8List;
 
     try {
-      final decodedMap = decodeCardPayloadToMap(payload);
+      final decodedMap = null;
 
       if (!mounted) return;
       showDialog(
@@ -1267,12 +1234,13 @@ class _KaascanState extends State<Kaascan> {
         ),
       );
 
-      final primary = Primary(
-        schoolStudentData:
-            decodedMap["schoolStudentData"] as Map<dynamic, dynamic>,
-        data: decodedMap["marks"] as List<dynamic>,
-      );
+      // final primary = Primary(
+      //   schoolStudentData:
+      //       decodedMap["schoolStudentData"] as Map<dynamic, dynamic>,
+      //   data: decodedMap["marks"] as List<dynamic>,
+      // );
 
+      final primary = null;
       final Uint8List pdfBytes = await primary.generateReportPdf();
 
       if (mounted) Navigator.of(context).pop();
@@ -1302,196 +1270,90 @@ class _KaascanState extends State<Kaascan> {
   // INPUT WIDGET
   // ---------------------------------------------------------------------
 
-  // Blue of "kadi" in the SOMAKADI logo
-  static const Color _kadiBlue = Color.fromARGB(255, 0, 25, 205);
-
-  Widget _buildTextInput(ValuesProvider valuesProvider) {
-    return Container(
-      // Transparent: the input sits directly on the orange background
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Text field
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white,
-                width: 1.4,
-              ),
-            ),
-            child: TextField(
-              controller: askText,
-              maxLines: 3,
-              minLines: 1,
-              cursorColor: Colors.white,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(
-                fontSize: 16,
-                color: Color.fromARGB(255, 157, 157, 160),
-                fontFamily: "minigap",
-              ),
-              decoration: InputDecoration(
-                hintText: 'Umunyeshuri yitwa gute...',
-                hintStyle: TextStyle(
-                  color: const Color.fromARGB(255, 3, 16, 151).withValues(alpha: 0.8),
-                  fontSize: 15,
-                  fontFamily: "minigap",
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onChanged: (value) {
-                setState(() {});
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Actions: scan on the left, send on the right
-          Consumer<ValuesProvider>(
-            builder: (context, Wvalue, child) {
-              final hasText = askText.text.trim().isNotEmpty;
-              final waiting = Wvalue.waiting_ask;
-              return Row(
-                children: [
-                  // Scan report
-                  Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(100),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () async {
-                        debugPrint('▶️ scan started');
-                        final bytes = await _startReportScan(context);
-                        debugPrint('◀️ scan returned: $bytes');
-                        if (!context.mounted) return;
-                        if (bytes == null) {
-                          debugPrint('❌ bytes is null');
-                          return;
-                        }
-                        debugPrint('✅ got ${bytes.length} bytes');
-                      },
-                      child: const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.qr_code_scanner_rounded,
-                              color: _kadiBlue,
-                              size: 22,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Scan',
-                              style: TextStyle(
-                                color: _kadiBlue,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "minigap",
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Send
-                  Semantics(
-                    button: true,
-                    label: 'Send',
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(
-                          alpha: hasText || waiting ? 1 : 0.55,
-                        ),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        shape: const CircleBorder(),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: () {
-                            if (askText.text.isEmpty) return;
-                            _handleSendMessage(valuesProvider);
-                          },
-                          child: Center(
-                            child: waiting
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: _kadiBlue,
-                                    ),
-                                  )
-                                : Image.asset(
-                                    "assets/send.png",
-                                    width: 28,
-                                    height: 28,
-                                    fit: BoxFit.contain,
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+  Widget _buildTextInput(ValuesProvider valuesProvider,
+      {bool connected = false}) {
+    return Padding(
+      // Connected, the card sits directly on the neck down to the nav.
+      padding: EdgeInsets.fromLTRB(4, 8, 4, connected ? 0 : 8),
+      child: Consumer<ValuesProvider>(
+        builder: (context, provider, _) => SomaChatInput(
+          controller: askText,
+          attachments: _attachments,
+          onAttach: (a) => setState(() => _attachments.add(a)),
+          onRemoveAttachment: (i) => setState(() => _attachments.removeAt(i)),
+          engine: _engine,
+          onEngineChanged: _setEngine,
+          waiting: provider.waiting_ask,
+          onChanged: (_) => setState(() {}),
+          onSend: () => _handleSendMessage(valuesProvider),
+          onScan: () async {
+            final bytes = await _startReportScan(context);
+            if (!context.mounted || bytes == null) return;
+            debugPrint('scan returned ${bytes.length} bytes');
+          },
+        ),
       ),
     );
+  }
+
+  Future<void> _loadEngine() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_engineKey);
+    if (!mounted || saved == null) return;
+    setState(() {
+      _engine = saved == SomaEngine.nano.name ? SomaEngine.nano : SomaEngine.big;
+    });
+  }
+
+  Future<void> _setEngine(SomaEngine engine) async {
+    setState(() => _engine = engine);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_engineKey, engine.name);
   }
 
   // ---------------------------------------------------------------------
   // APP BAR
   // ---------------------------------------------------------------------
 
-  // Same background as the splash, onboarding and auth screens
-  static const Color _splashOrange = Color.fromARGB(255, 255, 60, 0);
+  // Same blue as the Students screen (myColor).
+  static const Color _screenBlue = Color.fromARGB(255, 0, 34, 255);
+  // Chat column width cap so tablets and desktops don't stretch bubbles.
+  static const double _maxContentWidth = 760;
 
   Widget _buildAppBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      decoration: const BoxDecoration(color: _splashOrange),
+    final bar = Container(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
       child: Row(
         children: [
-          Image.asset(
-            'assets/Glossy 3D White C Emblem.png',
-            height: 32,
-            width: 32,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.psychology_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Soma AI',
-              style: TextStyle(
+          const Spacer(),
+          if (widget.embedded && widget.onExpand != null)
+            IconButton(
+              onPressed: widget.onExpand,
+              icon: const Icon(
+                Icons.open_in_full_rounded,
                 color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'minigap',
+                size: 22,
               ),
+              tooltip: 'Open full chat',
             ),
+          if (_valuesProvider?.messages.isNotEmpty ?? false)
+            IconButton(
+              onPressed: _startNewChat,
+              icon: const Icon(
+                Icons.add_comment_outlined,
+                color: Colors.white,
+                size: 24,
+              ),
+              tooltip: 'New chat',
+            ),
+          IconButton(
+            onPressed: () => showSomaColorPicker(context),
+            icon: const Icon(
+              Icons.palette_outlined,
+              color: Colors.white,
+              size: 24,
+            ),
+            tooltip: 'Personalise Soma',
           ),
           IconButton(
             onPressed: _showHistorySheet,
@@ -1505,85 +1367,109 @@ class _KaascanState extends State<Kaascan> {
         ],
       ),
     );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset(
-            'assets/Glossy 3D White C Emblem.png',
-            height: 140,
-            width: 200,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.psychology_rounded,
-              color: Colors.white54,
-              size: 100,
-            ),
+    if (!widget.embedded) return bar;
+    // In the pop-up sheet: a grab handle above the actions.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(2),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'Soma AI',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'minigap',
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Nkubwire ibibazo byawe\nNzakufasha vuba',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.75),
-              fontSize: 15,
-              fontFamily: 'minigap',
-              height: 1.6,
-            ),
-          ),
-          const SizedBox(height: 32),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              _buildHintChip('Abana banjye'),
-              _buildHintChip('Amafaranga asigaye'),
-              _buildHintChip('Ohereza amafaranga'),
-            ],
-          ),
-        ],
-      ),
+        ),
+        bar,
+      ],
     );
   }
 
-  Widget _buildHintChip(String label) {
-    return GestureDetector(
-      onTap: () {
-        askText.text = label;
-        setState(() {});
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.35)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontFamily: 'minigap',
-            fontWeight: FontWeight.w600,
+  Widget _buildEmptyState() {
+    return LayoutBuilder(
+      builder: (context, box) {
+        // The robot shrinks on short screens (landscape, keyboard open) and
+        // the whole block scrolls if even that does not fit.
+        final robotSize = (box.maxHeight * 0.4).clamp(110.0, 260.0);
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: math.max(0, box.maxHeight - 24),
+            ),
+            child: Center(
+              child: _emptyStateContent(robotSize),
+            ),
           ),
-        ),
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _emptyStateContent(double robotSize) {
+    return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SomaRobotLive(size: robotSize, input: askText, greet: true),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Soma',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.5,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ValueListenableBuilder<SomaBackgroundColor>(
+                  valueListenable: SomaRobotTheme.background,
+                  builder: (_, bg, __) => Text(
+                  'AI',
+                  style: GoogleFonts.outfit(
+                    color: bg.color,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          ),
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Text(
+              'Hi! I keep an eye on your children\'s school money.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+          const _RotatingTip(),
+        ],
     );
   }
 
@@ -1594,19 +1480,34 @@ class _KaascanState extends State<Kaascan> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _splashOrange,
-      body: SafeArea(
+      backgroundColor: _screenBlue,
+      body: SomaChatBackground(
+        child: SafeArea(
         child: Stack(
           children: [
             Consumer<ValuesProvider>(
               builder: (context, value, _) {
+                // The bottom nav is hidden under the keyboard, so the
+                // connector to it is too.
+                final showConnector = !widget.embedded &&
+                    View.of(context).viewInsets.bottom == 0;
                 return Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+                    child: Column(
                   children: [
                     _buildAppBar(),
                     Expanded(
                       child: (value.messages.isEmpty && !value.waiting_ask)
                           ? _buildEmptyState()
-                          : ListView.builder(
+                          : ChatAutoScroll(
+                        controller: _chatScrollController,
+                        userMessageCount:
+                            value.messages.where((m) => m.isUser).length,
+                        child: ListView.builder(
                         controller: _chatScrollController,
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                         physics: const BouncingScrollPhysics(),
@@ -1651,17 +1552,24 @@ class _KaascanState extends State<Kaascan> {
                                           actionMessage, responseData, value),
                               onProductTap:
                                   msg.askResponse != null ? () => {} : null,
-                              onActiveStudentChanged: (photoUrl, name) =>
-                                  _showStudentOverlay(photoUrl, name),
                               onUiSend: (message, studentId) =>
                                   _handleUiSend(message, studentId, value),
                               onConfirmTopup: _confirmTopup,
+                              onLinkStudent: (id, name, photo) =>
+                                  _linkStudentToAccount(id, name, photo, value),
                             ),
                           );
                         },
-                      ),
+                      )),
                     ),  // end ListView / empty state
-                    _buildTextInput(value),
+                    _buildTextInput(value, connected: showConnector),
+                  ],
+                    ),
+                  ),
+                      ),
+                    ),
+                    if (showConnector)
+                      SomaNavConnector(waiting: value.waiting_ask),
                   ],
                 );
               },
@@ -1669,6 +1577,7 @@ class _KaascanState extends State<Kaascan> {
             if (_overlayVisible) _buildDraggableOverlay(),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1688,17 +1597,22 @@ class _KaascanState extends State<Kaascan> {
       final logoCenterY = appBarVerticalPadding + logoHeight / 2;
 
       final defaultLeft = (logoCenterX - overlaySize / 2)
-          .clamp(8.0, size.width - overlaySize - 8);
+          .clamp(8.0, math.max(8.0, size.width - overlaySize - 8))
+          .toDouble();
       final defaultTop = (logoCenterY - overlaySize / 2)
-          .clamp(8.0, size.height - overlaySize - 60);
+          .clamp(8.0, math.max(8.0, size.height - overlaySize - 60))
+          .toDouble();
 
       _overlayPosition = Offset(defaultLeft, defaultTop);
       _overlayInitialized = true;
     }
 
+    // Upper bounds never drop below the lower bound: clamp() throws otherwise.
+    final maxLeft = math.max(8.0, size.width - overlaySize - 8);
+    final maxTop = math.max(8.0, size.height - overlaySize - 60);
     return Positioned(
-      left: _overlayPosition.dx.clamp(8.0, size.width - overlaySize - 8),
-      top: _overlayPosition.dy.clamp(8.0, size.height - overlaySize - 60),
+      left: _overlayPosition.dx.clamp(8.0, maxLeft),
+      top: _overlayPosition.dy.clamp(8.0, maxTop),
       child: GestureDetector(
         onPanUpdate: (details) {
           setState(() {
@@ -1919,8 +1833,527 @@ class _KaascanState extends State<Kaascan> {
 }
 
 // =====================================================================
+// SOMA REPORT SCANNER
+// =====================================================================
+
+enum _ScanStep { bring, scanning, found }
+
+/// Soma Report: the robot asks for the report card, scans its QR code, then
+/// celebrates before the sheet closes. [onDetect] returns true once the card
+/// was read.
+class _SomaReportScanSheet extends StatefulWidget {
+  const _SomaReportScanSheet({
+    required this.controller,
+    required this.onDetect,
+  });
+
+  final MobileScannerController controller;
+  final bool Function(BarcodeCapture capture) onDetect;
+
+  @override
+  State<_SomaReportScanSheet> createState() => _SomaReportScanSheetState();
+}
+
+class _SomaReportScanSheetState extends State<_SomaReportScanSheet>
+    with SingleTickerProviderStateMixin {
+  static const Color _blue = Color.fromARGB(255, 0, 34, 255);
+
+  late final AnimationController _sweep = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat(reverse: true);
+
+  _ScanStep _step = _ScanStep.bring;
+
+  @override
+  void dispose() {
+    _sweep.dispose();
+    super.dispose();
+  }
+
+  void _handleDetect(BarcodeCapture capture) {
+    if (_step != _ScanStep.scanning || !widget.onDetect(capture)) return;
+    HapticFeedback.mediumImpact();
+    setState(() => _step = _ScanStep.found);
+    Future<void>.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final height = MediaQuery.of(context).size.height * 0.78;
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(
+        color: _blue,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _header(),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                switchInCurve: Curves.easeOutCubic,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: ScaleTransition(
+                    scale: Tween(begin: 0.96, end: 1.0).animate(anim),
+                    child: child,
+                  ),
+                ),
+                child: switch (_step) {
+                  _ScanStep.bring => _bring(),
+                  _ScanStep.scanning => _scanning(),
+                  _ScanStep.found => _found(),
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 8, 4),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white38,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                'Soma Report',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: somaBrandOrange,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'BETA',
+                  style: GoogleFonts.outfit(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded, color: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _caption(String title, String sub) {
+    return Column(
+      children: [
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          sub,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(
+            color: Colors.white.withValues(alpha: 0.75),
+            fontSize: 14.5,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Step 1: Soma asks for the report card.
+  Widget _bring() {
+    return LayoutBuilder(
+      key: const ValueKey(_ScanStep.bring),
+      builder: (context, c) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: c.maxHeight - 20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SomaRobot(
+                size: (c.maxHeight * 0.42).clamp(120.0, 220.0),
+                greet: true,
+                floating: false,
+              ),
+              _caption(
+                'Bring the report card',
+                'Hold your child\'s school report up to the camera. '
+                    'Soma reads its QR code and explains the marks for you.',
+              ),
+              const SizedBox(height: 18),
+              _tips(),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: _blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  onPressed: () => setState(() => _step = _ScanStep.scanning),
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: Text(
+                    'Start scanning',
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tips() {
+    Widget tip(IconData icon, String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white70, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 13.5),
+                ),
+              ),
+            ],
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          tip(Icons.wb_sunny_outlined, 'Find good light, avoid glare'),
+          tip(Icons.crop_free_rounded, 'Fit the whole QR code in the frame'),
+          tip(Icons.pan_tool_alt_outlined, 'Hold still for a second'),
+        ],
+      ),
+    );
+  }
+
+  // Step 2: the camera with a framed window and a moving scan line.
+  Widget _scanning() {
+    return Padding(
+      key: const ValueKey(_ScanStep.scanning),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      child: Column(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  final window = c.biggest.shortestSide * 0.72;
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
+                        child: MobileScanner(
+                          controller: widget.controller,
+                          onDetect: _handleDetect,
+                          errorBuilder: (context, error) {
+                            debugPrint(
+                                '>>> scanner error: ${error.errorCode} ${error.errorDetails}');
+                            return _cameraError();
+                          },
+                        ),
+                      ),
+                      // Dim everything outside the window.
+                      IgnorePointer(
+                        child: ColorFiltered(
+                          colorFilter: ColorFilter.mode(
+                            Colors.black.withValues(alpha: 0.55),
+                            BlendMode.srcOut,
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                              Container(
+                                width: window,
+                                height: window,
+                                decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(22),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      IgnorePointer(
+                        child: SizedBox(
+                          width: window,
+                          height: window,
+                          child: CustomPaint(
+                            painter: _ScanFramePainter(),
+                            child: AnimatedBuilder(
+                              animation: _sweep,
+                              builder: (context, _) => Align(
+                                alignment: Alignment(
+                                    0, Curves.easeInOut.transform(_sweep.value) * 1.8 - 0.9),
+                                child: Container(
+                                  height: 3,
+                                  margin: const EdgeInsets.symmetric(horizontal: 18),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(2),
+                                    color: somaBrandOrange,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: somaBrandOrange.withValues(alpha: 0.7),
+                                        blurRadius: 14,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const SomaAvatar(size: 52, mood: SomaMood.thinking),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Looking for the QR code…',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Point the camera at the report card',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Flash',
+                onPressed: () => widget.controller.toggleTorch(),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.14),
+                ),
+                icon: const Icon(Icons.flashlight_on_rounded, color: Colors.white),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cameraError() {
+    return Container(
+      color: Colors.black,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'Soma can\'t open the camera.\nAllow camera access in Settings and try again.',
+        textAlign: TextAlign.center,
+        style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14),
+      ),
+    );
+  }
+
+  // Step 3: the card was read.
+  Widget _found() {
+    return LayoutBuilder(
+      key: const ValueKey(_ScanStep.found),
+      builder: (context, c) => Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  SomaRobot(
+                    size: (c.maxHeight * 0.45).clamp(120.0, 230.0),
+                    mood: SomaMood.idle,
+                    reaction: SomaMood.yes,
+                    reactionId: 1,
+                    floating: false,
+                  ),
+                  Positioned(
+                    right: 8,
+                    bottom: 18,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 450),
+                      curve: Curves.easeOutBack,
+                      builder: (context, t, child) =>
+                          Transform.scale(scale: t, child: child),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF16A34A),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check_rounded,
+                            color: Colors.white, size: 26),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              _caption(
+                'Report found!',
+                'Soma is reading the marks. The summary appears in the chat.',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded corner brackets around the scan window.
+class _ScanFramePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const len = 34.0;
+    const r = 22.0;
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final w = size.width, h = size.height;
+    final corners = [
+      Path()
+        ..moveTo(0, len)
+        ..lineTo(0, r)
+        ..arcToPoint(const Offset(r, 0), radius: const Radius.circular(r))
+        ..lineTo(len, 0),
+      Path()
+        ..moveTo(w - len, 0)
+        ..lineTo(w - r, 0)
+        ..arcToPoint(Offset(w, r), radius: const Radius.circular(r))
+        ..lineTo(w, len),
+      Path()
+        ..moveTo(w, h - len)
+        ..lineTo(w, h - r)
+        ..arcToPoint(Offset(w - r, h), radius: const Radius.circular(r))
+        ..lineTo(w - len, h),
+      Path()
+        ..moveTo(len, h)
+        ..lineTo(r, h)
+        ..arcToPoint(Offset(0, h - r), radius: const Radius.circular(r))
+        ..lineTo(0, h - len),
+    ];
+    for (final c in corners) {
+      canvas.drawPath(c, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// =====================================================================
 // HISTORY BOTTOM SHEET
 // =====================================================================
+
+const Color _historyBlue = Color(0xFF0019CD);
+const Color _historyInk = Color(0xFF11142D);
+
+/// The rounded grab handle at the top of the history sheets.
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 10, bottom: 6),
+        width: 40,
+        height: 4,
+        decoration: BoxDecoration(
+          color: _historyInk.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
 
 class _HistorySheet extends StatelessWidget {
   final List<Map<String, dynamic>> history;
@@ -1931,177 +2364,175 @@ class _HistorySheet extends StatelessWidget {
     required this.currentSessionId,
   });
 
-  static const Color _orange = Color.fromARGB(255, 255, 60, 0);
+  static DateTime? _date(Map<String, dynamic> s) =>
+      DateTime.tryParse(s['updatedAt']?.toString() ?? '')?.toLocal();
 
-  String _relativeTime(String isoDate) {
-    try {
-      final dt = DateTime.parse(isoDate);
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 1) return 'Just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-      if (diff.inHours < 24) return '${diff.inHours}h ago';
-      if (diff.inDays == 1) return 'Yesterday';
-      return '${diff.inDays}d ago';
-    } catch (_) {
-      return '';
+  static String _time(DateTime? dt) {
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  static String _group(DateTime? dt) {
+    if (dt == null) return 'Earlier';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dt.year, dt.month, dt.day);
+    final days = today.difference(day).inDays;
+    if (days <= 0) return 'Today';
+    if (days == 1) return 'Yesterday';
+    if (days < 7) return 'This week';
+    return 'Earlier';
+  }
+
+  /// The last thing said in a conversation, as a one-line preview.
+  static String _preview(Map<String, dynamic> s) {
+    final msgs = (s['messages'] as List?) ?? const [];
+    for (final m in msgs.reversed) {
+      final text = (m is Map ? m['text'] : null)?.toString().trim() ?? '';
+      if (text.isNotEmpty) return text.replaceAll(RegExp(r'\s+'), ' ');
     }
+    return '';
   }
 
   @override
   Widget build(BuildContext context) {
+    // Section headers between rows: Today, Yesterday, This week, Earlier.
+    final rows = <Object>[];
+    String? lastGroup;
+    for (final s in history) {
+      final g = _group(_date(s));
+      if (g != lastGroup) rows.add(g);
+      lastGroup = g;
+      rows.add(s);
+    }
+
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
+      initialChildSize: 0.65,
       minChildSize: 0.4,
       maxChildSize: 0.92,
       expand: false,
       builder: (ctx, scrollCtrl) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
           children: [
-            // Handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            // Header
+            const _SheetHandle(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 6, 12, 10),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _orange.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.history_rounded,
-                      color: _orange,
-                      size: 20,
-                    ),
-                  ),
+                  const SomaAvatar(size: 44),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Chat History',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'minigap',
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Chat history',
+                          style: GoogleFonts.outfit(
+                            color: _historyInk,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          history.isEmpty
+                              ? 'Your talks with Soma show up here'
+                              : '${history.length} conversation${history.length == 1 ? '' : 's'} with Soma',
+                          style: GoogleFonts.outfit(
+                            color: _historyInk.withValues(alpha: 0.5),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    '${history.length} sessions',
-                    style: const TextStyle(
-                      color: Colors.white38,
-                      fontSize: 13,
-                      fontFamily: 'minigap',
-                    ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(Icons.close_rounded,
+                        color: _historyInk.withValues(alpha: 0.45)),
                   ),
                 ],
               ),
             ),
-            const Divider(color: Colors.white12, height: 1),
-            // List
             Expanded(
               child: history.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No previous conversations',
-                        style: TextStyle(
-                          color: Colors.white38,
-                          fontFamily: 'minigap',
-                          fontSize: 15,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
+                  ? _empty()
+                  : ListView.builder(
                       controller: scrollCtrl,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: history.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(color: Colors.white10, height: 1),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                      itemCount: rows.length,
                       itemBuilder: (_, i) {
-                        final s = history[i];
-                        final isCurrent = s['id'] == currentSessionId;
-                        final msgs = (s['messages'] as List?) ?? [];
-                        return ListTile(
+                        final row = rows[i];
+                        if (row is String) return _groupLabel(row);
+                        final s = row as Map<String, dynamic>;
+                        return _SessionRow(
+                          title: s['title']?.toString() ?? 'Conversation',
+                          preview: _preview(s),
+                          time: _time(_date(s)),
+                          isCurrent: s['id'] == currentSessionId,
                           onTap: () {
                             Navigator.of(context).pop();
                             _openSession(context, s);
                           },
-                          leading: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: isCurrent
-                                  ? _orange.withOpacity(0.2)
-                                  : Colors.white10,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              isCurrent
-                                  ? Icons.chat_bubble_rounded
-                                  : Icons.chat_bubble_outline_rounded,
-                              color: isCurrent ? _orange : Colors.white38,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            s['title'] ?? 'Conversation',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontFamily: 'minigap',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${msgs.length} messages  •  ${_relativeTime(s['updatedAt'] ?? '')}',
-                            style: const TextStyle(
-                              color: Colors.white38,
-                              fontFamily: 'minigap',
-                              fontSize: 12,
-                            ),
-                          ),
-                          trailing: isCurrent
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: _orange.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Text(
-                                    'Active',
-                                    style: TextStyle(
-                                      color: _orange,
-                                      fontSize: 11,
-                                      fontFamily: 'minigap',
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.white24,
-                                ),
                         );
                       },
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _groupLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 16, 10, 6),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.outfit(
+          color: _historyInk.withValues(alpha: 0.45),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _empty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SomaRobot(size: 120, floating: true),
+            const SizedBox(height: 8),
+            Text(
+              'No conversations yet',
+              style: GoogleFonts.outfit(
+                color: _historyInk,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Ask Soma about your children and the chat will be saved here.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: _historyInk.withValues(alpha: 0.5),
+                fontSize: 14,
+              ),
             ),
           ],
         ),
@@ -2127,6 +2558,120 @@ class _HistorySheet extends StatelessWidget {
   }
 }
 
+class _SessionRow extends StatelessWidget {
+  const _SessionRow({
+    required this.title,
+    required this.preview,
+    required this.time,
+    required this.isCurrent,
+    required this.onTap,
+  });
+
+  final String title;
+  final String preview;
+  final String time;
+  final bool isCurrent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: isCurrent
+            ? _historyBlue.withValues(alpha: 0.06)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isCurrent
+                        ? somaBrandOrange.withValues(alpha: 0.12)
+                        : _historyInk.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const IgnorePointer(child: SomaAvatar(size: 34)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(
+                                color: _historyInk,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (isCurrent)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _historyBlue,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'Now',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            )
+                          else
+                            Text(
+                              time,
+                              style: GoogleFonts.outfit(
+                                color: _historyInk.withValues(alpha: 0.4),
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (preview.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            color: _historyInk.withValues(alpha: 0.55),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SessionViewSheet extends StatelessWidget {
   final String title;
   final List<Map<String, dynamic>> messages;
@@ -2138,105 +2683,122 @@ class _SessionViewSheet extends StatelessWidget {
     required this.updatedAt,
   });
 
-  static const Color _orange = Color.fromARGB(255, 255, 60, 0);
-
   @override
   Widget build(BuildContext context) {
+    final when = _HistorySheet._time(
+        DateTime.tryParse(updatedAt)?.toLocal());
     return DraggableScrollableSheet(
-      initialChildSize: 0.85,
+      initialChildSize: 0.88,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
       builder: (ctx, scrollCtrl) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          color: Color(0xFFF4F6FB),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
           children: [
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+            const _SheetHandle(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 10),
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'minigap',
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            color: _historyInk,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (when.isNotEmpty)
+                          Text(
+                            '${messages.length} messages · $when',
+                            style: GoogleFonts.outfit(
+                              color: _historyInk.withValues(alpha: 0.5),
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded,
-                        color: Colors.white38, size: 22),
+                    icon: Icon(Icons.close_rounded,
+                        color: _historyInk.withValues(alpha: 0.45)),
                   ),
                 ],
               ),
             ),
-            const Divider(color: Colors.white12, height: 1),
             Expanded(
-              child: ListView.builder(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (_, i) {
-                  final m = messages[i];
-                  final isUser = m['role'] == 'user';
-                  final text = m['text'] as String? ?? '';
-                  return Align(
-                    alignment:
-                        isUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: EdgeInsets.only(
+              child: ValueListenableBuilder<SomaBubbleColor>(
+                valueListenable: SomaRobotTheme.bubble,
+                builder: (context, bubble, _) => ListView.builder(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 24),
+                  itemCount: messages.length,
+                  itemBuilder: (_, i) {
+                    final m = messages[i];
+                    final isUser = m['role'] == 'user';
+                    final text = m['text'] as String? ?? '';
+                    final bubbleBox = Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isUser ? Colors.white : bubble.color,
+                          border: isUser
+                              ? Border.all(
+                                  color: _historyInk.withValues(alpha: 0.08))
+                              : null,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(isUser ? 18 : 4),
+                            topRight: Radius.circular(isUser ? 4 : 18),
+                            bottomLeft: const Radius.circular(18),
+                            bottomRight: const Radius.circular(18),
+                          ),
+                        ),
+                        child: Text(
+                          text,
+                          style: GoogleFonts.outfit(
+                            color: isUser ? _historyInk : Colors.white,
+                            fontSize: 14.5,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    );
+                    return Padding(
+                      padding: EdgeInsets.only(
                         bottom: 10,
-                        left: isUser ? 60 : 0,
-                        right: isUser ? 0 : 60,
+                        left: isUser ? 56 : 0,
+                        right: isUser ? 0 : 40,
                       ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isUser
-                            ? _orange.withOpacity(0.85)
-                            : Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft:
-                              Radius.circular(isUser ? 16 : 4),
-                          bottomRight:
-                              Radius.circular(isUser ? 4 : 16),
-                        ),
+                      child: Row(
+                        mainAxisAlignment: isUser
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: isUser
+                            ? [bubbleBox]
+                            : [
+                                const IgnorePointer(
+                                    child: SomaAvatar(size: 32)),
+                                const SizedBox(width: 8),
+                                bubbleBox,
+                              ],
                       ),
-                      child: Text(
-                        text,
-                        style: TextStyle(
-                          color:
-                              isUser ? Colors.white : Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                          fontFamily: 'minigap',
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -2250,204 +2812,88 @@ class _SessionViewSheet extends StatelessWidget {
 // HELPERS (top-level)
 // =====================================================================
 
-void debugBytesBin(String label, Uint8List b, {int perLine = 32}) {
-  final bits = b.map((x) => x.toRadixString(2).padLeft(8, '0')).join();
-  final data = Comp.decompressFromBinary(bits);
-  final decoded = DataAttention(data: data);
+/// Cycles through example questions so parents see what they can ask next.
+class _RotatingTip extends StatefulWidget {
+  const _RotatingTip();
 
-  final text = prettyJson(
-    decoded.layer_2()["student_marks"]["subject_marks"]["subjects_alloc"]
-        ["kinyarwanda / Rwanda Sign Language"]["term_2"]["block_10"],
-  );
-  debugPrint("$label: $text");
+  @override
+  State<_RotatingTip> createState() => _RotatingTipState();
 }
 
-/// Decode a 1024-byte card payload into the JSON string shown in chat.
-String decodeCardPayload(Uint8List b) {
-  final bits = b.map((x) => x.toRadixString(2).padLeft(8, '0')).join();
-  final data = Comp.decompressFromBinary(bits);
-  final decoded = DataAttention(data: data);
-  final slice = decoded
-      .layer_2()['student_marks']['subject_marks']['subjects_alloc']
-          ['kinyarwanda / Rwanda Sign Language']['term_2']['block_10'];
-  return slice[0];
-}
-
-/// Decode the payload into the structured map the PDF generator needs.
-Map<String, dynamic> decodeCardPayloadToMap(Uint8List b) {
-  final bits = b.map((x) => x.toRadixString(2).padLeft(8, '0')).join();
-  final data = Comp.decompressFromBinary(bits);
-  final decoded = DataAttention(data: data);
-
-  final root = decoded.layer_2();
-
-  final studentNames =
-      root["student_data"]?["names"] as Map? ?? const {};
-  final studentMarks =
-      root["student_marks"]?["subject_marks"]?["subjects_alloc"] as Map? ??
-          const {};
-
-  return {
-    "schoolStudentData": {
-      "student_data": {
-        "fullname":
-            (studentNames["first_name"] ?? root["student_data"]?["fullname"] ?? "")
-                .toString(),
-        "studentid":
-            (root["student_data"]?["studentid"] ?? "").toString(),
-      },
-      "school_data": {
-        "school_name":
-            (root["school_data"]?["school_name"] ?? "").toString(),
-        "school_district":
-            (root["school_data"]?["district"] ?? "").toString(),
-        "school_phonenumber":
-            (root["school_data"]?["phone"] ?? "").toString(),
-        "director_name":
-            (root["school_data"]?["head_teacher"] ?? "").toString(),
-      },
-    },
-    "marks": _extractMarksArray(studentMarks, root),
-  };
-}
-
-/// Rebuild the flat 0..98 index array from the decoded subject tree.
-List<dynamic> _extractMarksArray(
-  Map<dynamic, dynamic> subjects,
-  Map<dynamic, dynamic> root,
-) {
-  final List<dynamic> marks = <dynamic>[];
-
-  // --- Conduct (indices 0..2) ---
-  final conduct =
-      root["student_marks"]?["conduct_marks"]?["marks"] as List?;
-  if (conduct != null && conduct.length >= 3) {
-    marks.add(conduct[0] as int);
-    marks.add(conduct[1] as int);
-    marks.add(conduct[2] as int);
-  } else {
-    marks.addAll(<int>[40, 40, 40]);
-  }
-
-  // --- Subjects in rules-map order ---
-  const List<String> subjectOrder = <String>[
-    "kinyarwanda / Rwanda Sign Language",
-    "Mathematics",
-    "English",
-    "French",
-    "Social Studies and Religious Education",
-    "Science and Elementary Technology",
-    "Physical Education and Sports",
-    "Creative Arts (Fine Art and Music)",
+class _RotatingTipState extends State<_RotatingTip> {
+  static const _tips = [
+    'How much money does my child have left?',
+    'Send 5,000 RWF to my daughter',
+    'What did my son spend this week?',
+    'Show me all my children',
+    'Is it time to top up?',
   ];
 
-  for (final String name in subjectOrder) {
-    final subject = subjects[name] as Map?;
-    if (subject == null) {
-      // Push zeros so the array stays aligned to the rules map.
-      for (int i = 0; i < 12; i++) {
-        marks.add(0);
-      }
-      continue;
-    }
+  int _index = 0;
+  Timer? _timer;
 
-    for (final String term in <String>["term_1", "term_2", "term_3"]) {
-      final t = subject[term] as Map?;
-      if (t == null) {
-        marks.addAll(<int>[0, 0, 0, 0]);
-        continue;
-      }
-
-      marks.add(_readBlock(t, "block_1"));
-      marks.add(_readBlock(t, "block_2"));
-      marks.add(_readBlock(t, "block_4"));
-      marks.add(_readBlock(t, "block_5"));
-    }
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 3200), (_) {
+      if (mounted) setState(() => _index = (_index + 1) % _tips.length);
+    });
   }
 
-  return marks;
-}
-
-int _readBlock(Map term, String key) {
-  final v = term[key];
-  if (v is List && v.isNotEmpty) {
-    final first = v.first;
-    if (first is int) return first;
-    if (first is num) return first.toInt();
-    if (first is String) return int.tryParse(first) ?? 0;
-  }
-  return 0;
-}
-
-void debugBytesBinOneLine(Uint8List b) {
-  final bits = b.map((x) => x.toRadixString(2).padLeft(8, '0')).join();
-  stdout.write('BIN_START ');
-  stdout.write(bits);
-  stdout.write(' BIN_END\n');
-}
-
-void _logFrame(Uint8List frame) {
-  debugPrint('frame total length: ${frame.length}');
-  final head =
-      frame.take(4).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  final tail = frame
-      .sublist(frame.length > 4 ? frame.length - 4 : 0)
-      .map((b) => b.toRadixString(16).padLeft(2, '0'))
-      .join();
-  debugPrint('head: $head   tail: $tail');
-}
-
-/// Payload contract for the Kaascan binary QR: 1024 bytes starting 03 7B 2E 02.
-const List<int> _payloadMagic = <int>[0x03, 0x7B, 0x2E, 0x02];
-
-Uint8List? extractBinaryPayload(Uint8List frameBytes) {
-  _logFrame(frameBytes);
-
-  final imglib.Image? image =
-      imglib.decodePng(frameBytes) ?? imglib.decodeJpg(frameBytes);
-  if (image == null) {
-    debugPrint('image decode FAILED — frame length was above');
-    return null;
-  }
-  debugPrint('decoded image: ${image.width}x${image.height}');
-
-  final Uint8List rgba =
-      image.getBytes(order: imglib.ChannelOrder.rgba);
-
-  final Codes results = zx.readBarcodes(
-    rgba,
-    DecodeParams(
-      imageFormat: ImageFormat.rgba,
-      format: Format.qrCode,
-      width: image.width,
-      height: image.height,
-    ),
-  );
-
-  Uint8List? match;
-  for (final Code code in results.codes) {
-    final Uint8List? b = code.rawBytes;
-    if (b == null || b.length < 4) {
-      debugPrint(
-        'zxing symbol: no bytes (isValid=${code.isValid}, error=${code.error})',
-      );
-      continue;
-    }
-    final head =
-        b.sublist(0, 4).map((x) => x.toRadixString(16).padLeft(2, '0')).join();
-    debugPrint('zxing symbol: len=${b.length} head=$head');
-
-    if (b.length == 1024 &&
-        b[0] == _payloadMagic[0] &&
-        b[1] == _payloadMagic[1] &&
-        b[2] == _payloadMagic[2] &&
-        b[3] == _payloadMagic[3]) {
-      match = b;
-    }
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
-  if (match == null) {
-    debugPrint('intended payload not in this frame — next detection retries');
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          'TRY ASKING',
+          style: GoogleFonts.outfit(
+            color: Colors.white.withValues(alpha: 0.65),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: math.min(320, MediaQuery.sizeOf(context).width - 48),
+          // Room for two lines at the user's text size, so long tips and
+          // large accessibility fonts never overflow or shift the layout.
+          height: MediaQuery.textScalerOf(context).scale(18) * 1.35 * 2 + 6,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 450),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween(
+                  begin: const Offset(0, 0.25),
+                  end: Offset.zero,
+                ).animate(anim),
+                child: child,
+              ),
+            ),
+            child: Align(
+              key: ValueKey(_index),
+              alignment: Alignment.topCenter,
+              child: Text(
+                '“${_tips[_index]}”',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
-  return match;
 }

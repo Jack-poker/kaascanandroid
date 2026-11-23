@@ -1,3 +1,4 @@
+import 'package:kaascan/services/soma_home_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:kaascan/Auth/login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -84,6 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirmed == true) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+      await SomaHomeWidget.clear();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,

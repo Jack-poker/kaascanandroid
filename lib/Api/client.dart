@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_overlay_loader/flutter_overlay_loader.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:kaascan/Api/config.dart';
+import 'package:kaascan/services/server_status.dart';
 import 'package:kaascan/sdk/kaascan_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -27,6 +28,7 @@ final api_Call = Dio(BaseOptions(
     },
     onResponse: (response, handler) {
       debugPrint('[API] ✅ ${response.statusCode} ${response.requestOptions.path}');
+      ServerStatus.reportSuccess();
       handler.next(response);
     },
     onError: (error, handler) {
@@ -35,6 +37,13 @@ final api_Call = Dio(BaseOptions(
         debugPrint('[API] ❌ ${response.statusCode} ${error.requestOptions.path}');
         debugPrint('[API] Error body: ${response.data}');
 
+        final code = response.statusCode ?? 0;
+        if (code == 502 || code == 503 || code == 504) {
+          ServerStatus.reportFailure(overloaded: true);
+        } else if (code < 500) {
+          ServerStatus.reportSuccess(); // the server answered, even if with an error
+        }
+
         // JWT expired or invalid — clear session and redirect to login
         if (response.statusCode == 401) {
           debugPrint('[API] 🔒 JWT expired — logging out');
@@ -42,6 +51,11 @@ final api_Call = Dio(BaseOptions(
         }
       } else {
         debugPrint('[API] ❌ Network error: ${error.message}');
+        if (error.type == DioExceptionType.connectionError ||
+            error.type == DioExceptionType.connectionTimeout ||
+            error.type == DioExceptionType.receiveTimeout) {
+          ServerStatus.reportFailure();
+        }
       }
       handler.next(error);
     },
@@ -948,6 +962,59 @@ Future<Response> Login(
         options: _withdrawOptions(token),
       ),
       "[FAIL] WITHDRAW STATUS",
+    );
+  }
+
+  /// Messages the parent's children sent by tapping their card at school.
+  Future<Response> studentMessages(String token, {int limit = 50}) async {
+    return _safeRequest(
+      () => api_Call.get(
+        "$base_Url/messages",
+        queryParameters: {"limit": limit},
+        options: Options(headers: {"authorization": "Bearer $token"}),
+      ),
+      "[FAIL] GETTING STUDENT MESSAGES",
+    );
+  }
+
+  /// The receipt of a confirmed top-up (for the "payment successful" screen).
+  Future<Response> paymentReceipt(String token, String transactionId, {String lang = 'en'}) async {
+    return _safeRequest(
+      () => api_Call.get(
+        "$base_Url/payments/$transactionId/receipt",
+        queryParameters: {"lang": lang},
+        options: Options(headers: {"authorization": "Bearer $token"}),
+      ),
+      "[FAIL] GETTING PAYMENT RECEIPT",
+    );
+  }
+
+  Future<Response> markStudentMessagesRead(String token, List<int> ids) async {
+    return _safeRequest(
+      () => api_Call.post(
+        "$base_Url/messages/read",
+        data: {"ids": ids},
+        options: Options(headers: {"authorization": "Bearer $token"}),
+      ),
+      "[FAIL] MARKING MESSAGES READ",
+    );
+  }
+
+  /// Records the parent's answer to a request ("approved" or "declined").
+  /// Moves no money: approve after the transfer went through.
+  Future<Response> resolveStudentMessage(
+    String token,
+    int id,
+    String action, {
+    String? transactionId,
+  }) async {
+    return _safeRequest(
+      () => api_Call.post(
+        "$base_Url/messages/$id/resolve",
+        data: {"action": action, if (transactionId != null) "transaction_id": transactionId},
+        options: Options(headers: {"authorization": "Bearer $token"}),
+      ),
+      "[FAIL] RESOLVING STUDENT MESSAGE",
     );
   }
 }

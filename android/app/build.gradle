@@ -66,6 +66,9 @@ android {
 
     dependencies {
         implementation fileTree(dir: "libs", include: ["*.jar"])
+        // Same version home_widget already pulls in.
+        implementation "androidx.work:work-runtime-ktx:2.11.2"
+        testImplementation "junit:junit:4.13.2"
     }
 }
 

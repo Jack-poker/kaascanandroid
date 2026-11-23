@@ -1,7 +1,10 @@
+import 'package:kaascan/services/soma_home_widget.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:kaascan/screens/downtime_screen.dart';
+import 'package:kaascan/services/server_status.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart' show GoogleFonts;
@@ -87,6 +90,7 @@ Future<void> sendLogs(String error, String stack) async {
 Future<void> clearSharedPrefs() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
+  await SomaHomeWidget.clear();
   print("[*] SharedPreferences cleared!");
 }
 
@@ -696,6 +700,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         fontFamily: 'Gilroy',
       ),
       home: Splashscreen(),
+      // Over every screen: the downtime notice while the server is unavailable.
+      builder: (context, child) => ValueListenableBuilder<bool>(
+        valueListenable: ServerStatus.down,
+        builder: (context, down, _) => Stack(
+          children: [
+            if (child != null) child,
+            if (down) const Positioned.fill(child: DowntimeScreen()),
+          ],
+        ),
+      ),
     );
   }
 }

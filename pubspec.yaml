@@ -7,8 +7,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  qaad_shared:
-    path: /home/qemmanuel/Documents/kaascan/kaascanandroid/qaad_sdk
+  # qaad_shared:
+  #   path: qaad_sdk
 
   cupertino_icons: ^1.0.8
   splasher: ^0.1.1
@@ -69,6 +69,10 @@ dependencies:
   ntfy: ^1.0.2
   cli_table: ^1.0.2
   printing: ^5.15.1
+  image_picker: ^1.2.4
+  file_picker: ^11.0.3
+  home_widget: ^0.10.0
+  pretty_print_json: ^1.0.1
  
 
 
@@ -96,6 +100,7 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/sound/
+    - assets/payment/
     - assets/pin_guide.png
    
 

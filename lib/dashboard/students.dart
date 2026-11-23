@@ -1,3 +1,4 @@
+import 'package:kaascan/components/payment_logos.dart';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -26,6 +27,7 @@ import '../services/language_service.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:lottie/lottie.dart';
 import 'package:kaascan/components/addStudent.dart';
+import 'package:kaascan/screens/savings_screen.dart';
 
 class Students extends StatefulWidget {
   const Students({super.key});
@@ -1105,6 +1107,13 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                 // Main Content
                 Expanded(
                   child: SingleChildScrollView(
+                    // While loading, the page shimmers under the loader.
+                    child: Skeletonizer(
+                      enabled: _appLoading,
+                      effect: const ShimmerEffect(
+                        baseColor: Color(0xFFDDE4FF),
+                        highlightColor: Colors.white,
+                      ),
                     child: Column(
                       children: [
                         SizedBox(height: 20),
@@ -1114,20 +1123,27 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                         // Student List
                         _buildStudentList(),
                         const SizedBox(height: 32),
-                        // Student Transaction History
-                        if (studentId.isNotEmpty) _buildHistorySection(),
+                        // Savings (replaces the transaction history list)
+                        if (studentId.isNotEmpty)
+                          SavingsPreviewCard(
+                            key: ValueKey('savings-$studentId'),
+                            studentId: studentId,
+                            studentName: studentName,
+                          ),
                         const SizedBox(height: 40),
                       ],
+                    ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          // Loading overlay
+          // Loading overlay: the loader alone over the shimmering page (no
+          // dimming layer); still blocks taps until the data arrives.
           if (_appLoading)
-            Container(
-              color: myBlue.withValues(alpha: 0.8),
+            Positioned.fill(
+              child: AbsorbPointer(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1148,6 +1164,7 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
         ],
@@ -1556,18 +1573,33 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: () => _showFullQRDialog(),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 255, 255, 255),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-         
         ),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            Icons.qr_code_2_outlined,
-            color: Color.fromARGB(255, 255, 77, 23),
+        child: Semantics(
+          button: true,
+          label: 'Show student card QR code',
+          child: ColorFiltered(
+            // The wordmark is white "soma" + blue "kadi", made for dark
+            // backgrounds. Keyed on the red channel (1 for white, 0 for the
+            // blue), this turns "soma" navy and leaves "kadi" brand blue.
+            colorFilter: const ColorFilter.matrix(<double>[
+              0.067, 0, 0, 0, 0, //
+              -0.02, 0, 0, 0, 25, //
+              -0.628, 0, 0, 0, 205, //
+              0, 0, 0, 1, 0, //
+            ]),
+            child: Image.asset(
+              'assets/soma_logo.png',
+              height: 22,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.qr_code_2_outlined,
+                color: myColor,
+              ),
+            ),
           ),
         ),
       ),
@@ -2550,7 +2582,8 @@ class _StudentPaymentPicker extends StatelessWidget {
             context,
             icon: CupertinoIcons.phone,
             title: "Mobile Money",
-            subtitle: "MTN / Airtel — from your wallet",
+            subtitle: "From your wallet",
+            brands: const [PaymentBrand.mtn, PaymentBrand.airtel],
             color: const Color(0xFFFFB800),
             onTap: onMoMo,
           ),
@@ -2558,8 +2591,9 @@ class _StudentPaymentPicker extends StatelessWidget {
           _tile(
             context,
             icon: CupertinoIcons.creditcard,
-            title: "VISA / Mastercard",
+            title: "Bank card",
             subtitle: "Pay directly with a bank card",
+            brands: const [PaymentBrand.visa, PaymentBrand.mastercard],
             color: const Color(0xFF0022FF),
             onTap: onCard,
           ),
@@ -2576,6 +2610,7 @@ class _StudentPaymentPicker extends StatelessWidget {
     required String subtitle,
     required Color color,
     required VoidCallback onTap,
+    List<PaymentBrand> brands = const [],
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -2627,6 +2662,10 @@ class _StudentPaymentPicker extends StatelessWidget {
                       fontFamily: "gilroy-light",
                     ),
                   ),
+                  if (brands.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    PaymentLogoRow(brands, height: 22),
+                  ],
                 ],
               ),
             ),
