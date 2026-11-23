@@ -10,6 +10,7 @@ import 'package:kaascan/dashboard/home.dart' show currentIndex;
 import 'package:kaascan/dashboard/send_money_ui.dart';
 import 'package:kaascan/dashboard/transactions.dart';
 import 'package:kaascan/screens/kaascan_ai.dart' show somaQuote;
+import 'package:kaascan/screens/savings_screen.dart';
 import 'package:kaascan/services/language_service.dart';
 import 'package:kaascan/services/soma_home_widget.dart';
 import 'package:kaascan/services/student_messages.dart';
@@ -21,8 +22,8 @@ const _muted = Color(0xFF6B7280);
 const _orange = Color(0xFFFF6A00);
 const _green = Color(0xFF0E9F6E);
 
-/// The third tab: what the children sent from school (card taps), with the
-/// transaction history one switch away.
+/// The third tab: what the children sent from school (card taps), with their
+/// savings and the transaction history one switch away.
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key, @visibleForTesting this.preview});
 
@@ -34,7 +35,8 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  bool _history = false;
+  /// 0 = messages, 1 = savings, 2 = history.
+  int _view = 0;
   bool _loading = true;
   bool _failed = false;
   List<StudentMessage> _messages = const [];
@@ -139,9 +141,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
             children: [
               Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 4), child: _switcher()),
               Expanded(
-                child: _history
-                    ? const TransactionsScreen()
-                    : RefreshIndicator(color: _blue, onRefresh: _load, child: _body()),
+                child: switch (_view) {
+                  1 => const SavingsTab(),
+                  2 => const TransactionsScreen(),
+                  _ => RefreshIndicator(color: _blue, onRefresh: _load, child: _body()),
+                },
               ),
             ],
           ),
@@ -200,11 +204,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
           children: [
             tab(
               _t('Ubutumwa', 'Messages', 'Messages'),
-              !_history,
-              () => setState(() => _history = false),
+              _view == 0,
+              () => setState(() => _view = 0),
               badge: unread,
             ),
-            tab(_t('Amateka', 'History', 'Historique'), _history, () => setState(() => _history = true)),
+            tab(_t('Ubwizigame', 'Savings', 'Épargne'), _view == 1, () => setState(() => _view = 1)),
+            tab(_t('Amateka', 'History', 'Historique'), _view == 2, () => setState(() => _view = 2)),
           ],
         ),
       ),

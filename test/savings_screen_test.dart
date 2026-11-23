@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kaascan/screens/savings_screen.dart';
+import 'package:kaascan/screens/messages_screen.dart';
 
 /// Renders the savings card and page with sample data. Set SAVINGS_SHOTS to a
 /// folder to also save PNG screenshots there.
@@ -113,5 +114,25 @@ void main() {
       height: 420,
     );
     expect(find.text('Savings'), findsOneWidget);
+  });
+
+  testWidgets('savings inside the Messages tab draws on the blue background', (tester) async {
+    await render(
+      tester,
+      Scaffold(
+        backgroundColor: const Color(0xFF0022FF),
+        body: SafeArea(child: SavingsScreen(studentId: 'S1', studentName: 'Keza Uwase', data: sample(), embedded: true)),
+      ),
+      'savings_embedded',
+      height: 900,
+    );
+    expect(find.text('Keza has saved'), findsOneWidget);
+  });
+
+  testWidgets('the Messages tab switch has Messages, Savings and History', (tester) async {
+    await render(tester, const MessagesScreen(preview: []), 'messages_switch', height: 300);
+    expect(find.text('Messages'), findsOneWidget);
+    expect(find.text('Savings'), findsOneWidget);
+    expect(find.text('History'), findsOneWidget);
   });
 }
