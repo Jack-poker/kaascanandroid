@@ -228,9 +228,12 @@ class _SavingsPreviewCardState extends State<SavingsPreviewCard> {
 // ── The savings page ─────────────────────────────────────────────────────────
 
 class SavingsScreen extends StatefulWidget {
-  const SavingsScreen({super.key, required this.studentId, required this.studentName, this.data});
+  const SavingsScreen({super.key, required this.studentId, required this.studentName, this.data, this.embedded = false});
   final String studentId;
   final String studentName;
+
+  /// Inside a tab (the Messages tab): no back button, see-through background.
+  final bool embedded;
 
   /// Preloaded data (previews and tests); fetched from the server otherwise.
   final SavingsData? data;
@@ -252,7 +255,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
   Widget build(BuildContext context) {
     final first = widget.studentName.trim().split(' ').first;
     return Scaffold(
-      backgroundColor: const Color(0xFFEEF1FF),
+      backgroundColor: widget.embedded ? Colors.transparent : const Color(0xFFEEF1FF),
       body: FutureBuilder<SavingsData?>(
         future: _future,
         builder: (context, snap) {
@@ -263,7 +266,9 @@ class _SavingsScreenState extends State<SavingsScreen> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
-                SliverToBoxAdapter(child: _Hero(first: first, data: d, loading: snap.connectionState != ConnectionState.done)),
+                SliverToBoxAdapter(
+                  child: _Hero(first: first, data: d, loading: snap.connectionState != ConnectionState.done, embedded: widget.embedded),
+                ),
                 if (snap.connectionState == ConnectionState.done && d == null)
                   SliverToBoxAdapter(child: _Problem(onRetry: _reload))
                 else if (d != null) ...[
@@ -271,7 +276,8 @@ class _SavingsScreenState extends State<SavingsScreen> {
                   SliverToBoxAdapter(child: _HowItWorks(d, first)),
                   SliverToBoxAdapter(child: _WeeksChart(d)),
                   SliverToBoxAdapter(child: _Activity(d, first)),
-                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  // Room for the floating nav bar when shown inside a tab.
+                  SliverToBoxAdapter(child: SizedBox(height: widget.embedded ? 150 : 40)),
                 ],
               ],
             ),
@@ -284,24 +290,33 @@ class _SavingsScreenState extends State<SavingsScreen> {
 
 /// Blue hero: Soma, the saved amount counting up, and the goal ring.
 class _Hero extends StatelessWidget {
-  const _Hero({required this.first, required this.data, required this.loading});
+  const _Hero({required this.first, required this.data, required this.loading, this.embedded = false});
   final String first;
   final SavingsData? data;
   final bool loading;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
     final d = data;
     final top = MediaQuery.paddingOf(context).top;
     return Container(
-      padding: EdgeInsets.fromLTRB(20, top + 8, 20, 28),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2B4BFF), _blue, _blueDeep]),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
-      ),
+      margin: embedded ? const EdgeInsets.fromLTRB(20, 8, 20, 0) : EdgeInsets.zero,
+      padding: EdgeInsets.fromLTRB(20, embedded ? 4 : top + 8, 20, 28),
+      decoration: embedded
+          // Glass card over the tab's blue doodles.
+          ? BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            )
+          : const BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2B4BFF), _blue, _blueDeep]),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
+            ),
       child: Column(
         children: [
-          Row(
+          if (!embedded) Row(
             children: [
               _CircleButton(icon: CupertinoIcons.back, onTap: () => Navigator.pop(context)),
               const Spacer(),
@@ -924,6 +939,112 @@ class _FloatingCoinsState extends State<_FloatingCoins> with SingleTickerProvide
           ],
         ),
       ),
+    );
+  }
+}
+
+
+// ── The Messages tab's Savings view: pick a child, see their savings ─────────
+
+class SavingsTab extends StatefulWidget {
+  const SavingsTab({super.key});
+
+  @override
+  State<SavingsTab> createState() => _SavingsTabState();
+}
+
+class _SavingsTabState extends State<SavingsTab> {
+  List<Map<String, dynamic>>? _children;
+  int _selected = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    List<Map<String, dynamic>> list = const [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('login_token');
+      if (token != null) {
+        final res = await backendClient().studentsLinked(token);
+        list = List<Map<String, dynamic>>.from(res.data['students'] ?? const []);
+      }
+    } catch (e) {
+      debugPrint('[savings] children: $e');
+    }
+    if (mounted) setState(() => _children = list);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final kids = _children;
+    if (kids == null) return const Center(child: CupertinoActivityIndicator(color: Colors.white));
+    if (kids.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: 120, height: 120, child: OverflowBox(maxWidth: 180, maxHeight: 180, child: SomaRobot(size: 180))),
+              const SizedBox(height: 8),
+              Text(
+                _t('savings.no_children', 'Add a child to start seeing their savings.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontFamily: 'gilroy', color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final i = _selected.clamp(0, kids.length - 1);
+    final child = kids[i];
+    final id = '${child['student_id'] ?? ''}';
+    return Column(
+      children: [
+        if (kids.length > 1)
+          SizedBox(
+            height: 46,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              itemCount: kids.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, k) {
+                final on = k == i;
+                final name = '${kids[k]['student_name'] ?? ''}'.trim().split(' ').first;
+                return GestureDetector(
+                  onTap: () => setState(() => _selected = k),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: on ? Colors.white : Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      name,
+                      style: TextStyle(fontFamily: 'gilroy', fontSize: 14, color: on ? _blue : Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        Expanded(
+          child: SavingsScreen(
+            key: ValueKey('savings-tab-$id'),
+            studentId: id,
+            studentName: '${child['student_name'] ?? ''}',
+            embedded: true,
+          ),
+        ),
+      ],
     );
   }
 }
