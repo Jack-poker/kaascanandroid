@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The API is still plain HTTP (lib/Api/config.dart). Dart networking ignores
+     this policy, but the native ChargeReminderWorker does not. Remove these
+     hosts once the API moves to HTTPS. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">ssh.kaascan.com</domain>
+        <domain includeSubdomains="false">192.168.1.134</domain>
+    </domain-config>
+</network-security-config>

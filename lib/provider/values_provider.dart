@@ -1,17 +1,37 @@
 import 'package:flutter/foundation.dart';
 
+/// A file or photo the parent attached to a question.
+class ChatAttachment {
+  final String name;
+  final String mime;
+  final Uint8List bytes;
+
+  const ChatAttachment({
+    required this.name,
+    required this.mime,
+    required this.bytes,
+  });
+
+  bool get isImage => mime.startsWith('image/');
+}
+
 /// Represents a single chat message in the conversation.
 class ChatMessage {
   final String role; // 'user' or 'ai'
   final String text;
   final DateTime timestamp;
   final Map<dynamic, dynamic>? askResponse;
+  final List<ChatAttachment> attachments;
+  /// The child's message the parent asked Soma about (shown as a chip).
+  final Map<String, dynamic>? quote;
 
   ChatMessage({
     required this.role,
     required this.text,
     DateTime? timestamp,
     this.askResponse,
+    this.attachments = const [],
+    this.quote,
   }) : timestamp = timestamp ?? DateTime.now();
 
   bool get isUser => role == 'user';
@@ -19,6 +39,11 @@ class ChatMessage {
 }
 
 class ValuesProvider extends ChangeNotifier {
+  /// Identifies this conversation in chat history, however many chat views
+  /// (AI tab, pop-up sheet) show it.
+  String get sessionId => _sessionId;
+  String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
   // Conversation history
   final List<ChatMessage> _messages = [];
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -29,8 +54,8 @@ class ValuesProvider extends ChangeNotifier {
   bool waiting_ask = false;
 
   /// Add a user message to the conversation
-  void addUserMessage(String text) {
-    _messages.add(ChatMessage(role: 'user', text: text));
+  void addUserMessage(String text, {List<ChatAttachment> attachments = const [], Map<String, dynamic>? quote}) {
+    _messages.add(ChatMessage(role: 'user', text: text, attachments: attachments, quote: quote));
     waiting_ask = true;
     notifyListeners();
   }
@@ -55,6 +80,15 @@ class ValuesProvider extends ChangeNotifier {
       text: errorText,
     ));
     waiting_ask = false;
+    notifyListeners();
+  }
+
+  /// Starts a fresh conversation. The current one is already in history.
+  void startNewChat() {
+    _messages.clear();
+    waiting_ask = false;
+    ask_repsonse = {};
+    _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
     notifyListeners();
   }
 

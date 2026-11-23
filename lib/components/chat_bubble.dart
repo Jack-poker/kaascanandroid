@@ -1,7 +1,9 @@
+import 'package:kaascan/components/soma_robot.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:kaascan/components/found_student_card.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:kaascan/components/agentic_ui.dart';
@@ -44,6 +46,10 @@ class ChatBubble extends StatefulWidget {
   /// Called when the parent confirms a top-up card.
   final AgenticConfirmTopup? onConfirmTopup;
 
+  /// Links the child Soma found from a student code; true when it worked.
+  final Future<bool> Function(String id, String name, String photoUrl)?
+      onLinkStudent;
+
   /// When false the typewriter animation is skipped — the full text is shown
   /// immediately. Use this for messages that have already been displayed once.
   final bool animate;
@@ -62,6 +68,7 @@ class ChatBubble extends StatefulWidget {
     this.onActiveStudentChanged,
     this.onUiSend,
     this.onConfirmTopup,
+    this.onLinkStudent,
     this.animate = true,
   });
 
@@ -307,16 +314,13 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
         String? actionMessage = data['action_message']?.toString();
 
         if (status == 'found' && type == 'detail' && students.length == 1) {
-          actionWord = actionWord ?? 'hano';
-          final student = students[0];
-          actionMessage = actionMessage ??
-              'LINK_STUDENT:${student.id}:${student.name}:${student.photoUrl ?? ''}';
-          if (responseText != null && !responseText.contains(actionWord)) {
-            final displayName = student.name.length > 25
-                ? '${student.name.substring(0, 22)}...'
-                : student.name;
-            responseText = '$responseText\n\nKanda "$actionWord" urebe amafoto ya $displayName hanyuma uhuzwe na konti yawe.';
-          }
+
+          // The found child gets its own card with a link button.
+
+          actionWord = null;
+
+          actionMessage = null;
+
         }
 
         return _ParsedResponse(
@@ -376,16 +380,13 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           String? actionMessage = data['action_message']?.toString();
 
           if (status == 'found' && type == 'detail' && students.length == 1) {
-            actionWord = actionWord ?? 'hano';
-            final student = students[0];
-            actionMessage = actionMessage ??
-                'LINK_STUDENT:${student.id}:${student.name}:${student.photoUrl ?? ''}';
-            if (responseText != null && !responseText.contains(actionWord)) {
-              final displayName = student.name.length > 25
-                  ? '${student.name.substring(0, 22)}...'
-                  : student.name;
-              responseText = '$responseText\n\nKanda "$actionWord" urebe amafoto ya $displayName hanyuma uhuzwe na konti yawe.';
-            }
+
+            // The found child gets its own card with a link button.
+
+            actionWord = null;
+
+            actionMessage = null;
+
           }
 
           return _ParsedResponse(
@@ -516,6 +517,25 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildAiBubble(),
+            if (_typewriterComplete &&
+                widget.onLinkStudent != null &&
+                _parsedResponse != null &&
+                _parsedResponse!.hasSingleStudent)
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 8),
+                child: FoundStudentCard(
+                  name: _parsedResponse!.students.first.name,
+                  school: _parsedResponse!.students.first.school,
+                  grade: _parsedResponse!.students.first.grade,
+                  photoUrl: _parsedResponse!.students.first.photoUrl,
+                  lang: widget.responseData?['lang']?.toString() ?? 'rw',
+                  onLink: () => widget.onLinkStudent!(
+                    _parsedResponse!.students.first.id,
+                    _parsedResponse!.students.first.name,
+                    _parsedResponse!.students.first.photoUrl ?? '',
+                  ),
+                ),
+              ),
             // Agentic UI sits under the bubble at full width, once the
             // sentence has finished typing.
             if (_typewriterComplete &&
@@ -538,57 +558,21 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   }
 
   Widget _buildAiBubble() {
-    return Padding(
+    return ValueListenableBuilder<SomaBubbleColor>(
+      valueListenable: SomaRobotTheme.bubble,
+      builder: (context, bubble, _) => Padding(
       padding: const EdgeInsets.only(left: 4, right: 48, top: 4, bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF7C4DFF), Color(0xFFB388FF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: (1 > 0)
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        "assets/logo.jpg",
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.chat_bubble,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    )
-                  : const Icon(Icons.smart_toy, color: Colors.white, size: 18),
-            ),
-          ),
+          const SomaAvatar(),
           const SizedBox(width: 8),
           Flexible(
             child: Container(
+              constraints: const BoxConstraints(maxWidth: 560),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 0, 25, 205),
+                color: bubble.color,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   topRight: Radius.circular(20),
@@ -740,6 +724,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -805,6 +790,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
     final students = parsed.students;
 
     if (students.length == 1) {
+      if (widget.onLinkStudent != null) return [];
       return _buildSingleStudentPreview(students.first);
     }
 
@@ -1824,19 +1810,59 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   }
 
   Widget _buildGuideCard() {
+    final name = widget.responseData?['_guide_student_name']?.toString() ?? '';
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.heavyImpact();
-          widget.onActionTapped?.call('NAVIGATE_STUDENTS');
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.asset(
-            'assets/pin_guide.png',
-            fit: BoxFit.contain,
-            width: double.infinity,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            widget.onActionTapped?.call('NAVIGATE_STUDENTS');
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F5FF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.pin_rounded, color: Color(0xFF0019CD)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.isEmpty ? "Shyiraho PIN y'ikarita" : "Shyiraho PIN y'ikarita ya $name",
+                        style: const TextStyle(
+                          fontFamily: 'gilroy',
+                          fontSize: 15,
+                          color: Color(0xFF1A1F36),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Umwana ayikoresha yishyura ku ishuri.',
+                        style: TextStyle(
+                          fontFamily: 'gilroy-light',
+                          fontSize: 13,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF0019CD)),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,3 +1,4 @@
+import 'package:kaascan/components/payment_logos.dart';
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
@@ -367,12 +368,13 @@ class _CardDepositSheetState extends State<CardDepositSheet> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                CupertinoIcons.creditcard,
-                size: 16,
-                color: selected ? Colors.white : _textGrey,
+              PaymentLogo(
+                value == 'MASTERCARD'
+                    ? PaymentBrand.mastercard
+                    : PaymentBrand.visa,
+                height: 22,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(

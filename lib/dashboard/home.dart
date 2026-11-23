@@ -1,3 +1,10 @@
+import 'package:kaascan/components/payment_logos.dart';
+import 'package:kaascan/services/soma_charge_reminder.dart';
+import 'package:kaascan/services/soma_home_widget.dart';
+import 'package:kaascan/services/student_messages.dart';
+import 'package:kaascan/screens/messages_screen.dart';
+import 'package:kaascan/components/soma_nav_connector.dart';
+import 'package:kaascan/components/soma_robot.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
@@ -21,7 +28,6 @@ import 'package:kaascan/components/card_deposit.dart';
 import 'package:kaascan/components/favorite_students_widget.dart';
 import 'package:kaascan/dashboard/send_money_ui.dart';
 import 'package:kaascan/dashboard/students.dart';
-import 'package:kaascan/dashboard/transactions.dart';
 import 'package:kaascan/main.dart' hide lightBlue, myOpblue;
 import 'package:kaascan/onBoradingScreen.dart' hide myOpblue;
 import 'package:kaascan/provider/values_provider.dart';
@@ -64,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final bool _balanceVisible = true;
   final bool _showNotificationCard = true;
   String _userId = ""; // New state for Real User ID
+  String? _profilePicUrl;
 
   late AnimationController _balanceAnimationController;
   late Animation<double> _balanceAnimation;
@@ -361,6 +368,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         print("CRITICAL: Merchant detected in Parent Dashboard. Logging out.");
         final tempStorage = await SharedPreferences.getInstance();
         await tempStorage.clear(); // Clear all data
+        await SomaHomeWidget.clear();
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -388,6 +396,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       setState(() {
         _userId = profileData['username'] ?? profileData['phone'] ?? "";
+        _profilePicUrl = profileData['profile_picture'] ?? profileData['avatar_url'];
 
         accountBalance = (balance.data["balance"] as num?)?.toDouble() ?? 0.0;
         accountCurrency = balance.data["currency"] ?? "RWF";
@@ -441,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             await _initProfile();
             await _fetchTransactions();
           },
-          color: myColor,
+          color: const Color(0xFFE53935),
           child: Skeletonizer(
             enabled: _appLoading,
             child: SingleChildScrollView(
@@ -449,8 +458,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCleanTopBar(),
-                  _buildBalanceCard(),
+                  _buildGradientHeader(),
+                  _buildVirtualCard(),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -459,9 +468,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         const SizedBox(height: 28),
                         _buildActionButtons(),
                         const SizedBox(height: 32),
-                        _buildStudentsSection(),
-                        const SizedBox(height: 32),
                         _buildHistorySection(),
+                        const SizedBox(height: 28),
+                        _buildStudentsSection(),
                         const SizedBox(height: 120),
                       ],
                     ),
@@ -475,64 +484,249 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildCleanTopBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 16, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // ── gradient header (avatar | Balance | bell + balance amount + badge) ──────
+  Widget _buildGradientHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 56),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFD32F2F), Color(0xFFFF7043)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Column(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome back 👋',
-                style: TextStyle(
-                  color: const Color(0xFF9CA3AF),
-                  fontSize: 13,
-                  fontFamily: 'gilroy',
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _userId.isNotEmpty ? _userId : 'Somakadi',
-                style: const TextStyle(
-                  color: Color(0xFF11142D),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'gilroy',
-                ),
-              ),
-            ],
-          ),
+          // top bar
           Row(
             children: [
-              IconButton(
-                onPressed: _showNotifications,
-                icon: const Icon(
-                  CupertinoIcons.bell,
-                  color: Color(0xFF11142D),
-                  size: 22,
-                ),
-              ),
               GestureDetector(
                 onTap: _showSettings,
                 child: Container(
-                  padding: const EdgeInsets.all(9),
-                  decoration: const BoxDecoration(
-                    color: myColor,
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
+                    color: Colors.white.withValues(alpha: 0.2),
                   ),
-                  child: const Icon(
-                    Icons.settings_rounded,
-                    color: Colors.white,
-                    size: 18,
+                  child: ClipOval(
+                    child: _profilePicUrl != null && _profilePicUrl!.isNotEmpty
+                        ? CachedNetworkImageWrapper(
+                            imageUrl: _profilePicUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: _avatarFallback(),
+                            placeholder: _avatarFallback(),
+                          )
+                        : _avatarFallback(),
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const Spacer(),
+              const Text(
+                'Balance',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontFamily: 'gilroy',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _showNotifications,
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(CupertinoIcons.bell, color: Colors.white, size: 20),
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 24),
+          // balance amount
+          AnimatedBuilder(
+            animation: _balanceAnimation,
+            builder: (_, __) {
+              final display = accountBalance * _balanceAnimation.value;
+              return RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: _formatCurrency(display),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 46,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'gilroy',
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: ' RWF',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'gilroy',
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          // badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.arrow_outward_rounded, color: Colors.white, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  listStudent.isEmpty
+                      ? 'No students yet'
+                      : '${listStudent.length} student${listStudent.length != 1 ? "s" : ""} linked',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontFamily: 'gilroy',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _avatarFallback() {
+    final initials = _userId.isNotEmpty ? _userId[0].toUpperCase() : 'S';
+    return Container(
+      color: Colors.white.withValues(alpha: 0.3),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'gilroy',
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── stacked virtual card (overlaps bottom of gradient) ───────────────────────
+  Widget _buildVirtualCard() {
+    final cardNum = _userId.isNotEmpty && _userId.length >= 4
+        ? _userId.substring(_userId.length - 4)
+        : '0000';
+
+    return Transform.translate(
+      offset: const Offset(0, -48),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Stack(
+          children: [
+            // back card (slightly visible)
+            Positioned(
+              left: 12,
+              right: 12,
+              top: 6,
+              child: Container(
+                height: 100,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFCDD2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+            // front card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFB74D), Color(0xFFFF8A65)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF7043).withValues(alpha: 0.35),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '•••• •••• ••••  $cardNum',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontFamily: 'gilroy',
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${DateTime.now().month.toString().padLeft(2, '0')} / ${(DateTime.now().year + 5).toString().substring(2)}',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 14,
+                          fontFamily: 'gilroy',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Image.asset(
+                        'assets/soma_logo.png',
+                        height: 28,
+                        color: Colors.white,
+                        errorBuilder: (_, __, ___) => const Text(
+                          'SOMAKADI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontFamily: 'gilroy',
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1292,28 +1486,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       children: [
         Expanded(
           child: _buildActionButton(
-            label: languageService.t(
-              'home.add_student',
-              fallback: "Add Student",
-            ),
-            icon: CupertinoIcons.add_circled,
-            onTap: () {
-              openAddStudentDialog(context, deepNavy);
-            },
-            btn_color: const Color.fromARGB(255, 255, 255, 255),
-            text_color: myColor,
-            icon_color: myColor,
+            label: 'Deposit',
+            icon: Icons.arrow_upward_rounded,
+            onTap: _showModernDeposit,
+            btn_color: const Color(0xFFE53935),
+            text_color: Colors.white,
+            icon_color: Colors.white,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: _buildActionButton(
-            label: languageService.t('home.history', fallback: "History"),
-            icon: CupertinoIcons.time,
-            onTap: _showNotifications,
-            btn_color: _appLoading ? myOpblue : myColor,
-            text_color: myWhite,
-            icon_color: Colors.white,
+            label: 'Transfer',
+            icon: Icons.swap_vert_rounded,
+            onTap: () => openAddStudentDialog(context, deepNavy),
+            btn_color: Colors.white,
+            text_color: const Color(0xFF11142D),
+            icon_color: const Color(0xFF11142D),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildActionButton(
+            label: 'Withdraw',
+            icon: Icons.arrow_downward_rounded,
+            onTap: _showModernWithdraw,
+            btn_color: Colors.white,
+            text_color: const Color(0xFF11142D),
+            icon_color: const Color(0xFF11142D),
           ),
         ),
       ],
@@ -1989,7 +2189,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (listStudent.isNotEmpty)
               TextButton.icon(
                 onPressed: () {
-                  currentIndex.value = 2;
+                  currentIndex.value = 1;
                 },
                 icon: Icon(
                   Icons.arrow_forward_rounded,
@@ -2026,7 +2226,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 openAddStudentDialog(context, Colors.lightGreen),
             onStudentTap: (index) {
               if (_appLoading) return;
-              currentIndex.value = 2;
+              currentIndex.value = 1;
             },
           ),
       ],
@@ -2432,7 +2632,8 @@ class _PaymentMethodPicker extends StatelessWidget {
             context,
             icon: CupertinoIcons.phone,
             title: "Mobile Money",
-            subtitle: "MTN / Airtel — from your wallet",
+            subtitle: "From your wallet",
+            brands: const [PaymentBrand.mtn, PaymentBrand.airtel],
             color: const Color(0xFFFFB800),
             onTap: onMoMo,
           ),
@@ -2440,8 +2641,9 @@ class _PaymentMethodPicker extends StatelessWidget {
           _methodTile(
             context,
             icon: CupertinoIcons.creditcard,
-            title: "VISA / Mastercard",
+            title: "Bank card",
             subtitle: "Pay directly with a bank card",
+            brands: const [PaymentBrand.visa, PaymentBrand.mastercard],
             color: const Color(0xFF0022FF),
             onTap: onCard,
           ),
@@ -2458,6 +2660,7 @@ class _PaymentMethodPicker extends StatelessWidget {
     required String subtitle,
     required Color color,
     required VoidCallback onTap,
+    List<PaymentBrand> brands = const [],
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -2509,6 +2712,10 @@ class _PaymentMethodPicker extends StatelessWidget {
                       fontFamily: "gilroy-light",
                     ),
                   ),
+                  if (brands.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    PaymentLogoRow(brands, height: 22),
+                  ],
                 ],
               ),
             ),
@@ -2663,6 +2870,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _handleLogout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear(); // Clear all user data
+    await SomaHomeWidget.clear();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const loginScreen()),
@@ -2953,21 +3161,57 @@ class DashboardNav extends StatefulWidget {
   State<DashboardNav> createState() => _DashboardNavState();
 }
 
+// 0=AI, 1=Students, 2=Transactions (Home tab removed)
 ValueNotifier<int> currentIndex = ValueNotifier<int>(0);
 
-class _DashboardNavState extends State<DashboardNav> {
+class _DashboardNavState extends State<DashboardNav>
+    with WidgetsBindingObserver {
+  /// One conversation shared by the AI tab and the pop-up chat, so it
+  /// survives switching tabs.
+  final ValuesProvider _soma = ValuesProvider();
 
+  /// How far the floating robot rises above the bar on the other tabs.
+  static const double _robotLift = 28;
 
   @override
   void initState() {
     super.initState();
-    currentIndex.value = 0; // Reset to first tab on fresh login
+    currentIndex.value = 0; // Default to AI screen
     currentIndex.addListener(_onIndexChanged);
+    SomaRobotTheme.background.addListener(_onIndexChanged);
+    SomaRobotTheme.floating.addListener(_onIndexChanged);
+    SomaRobotTheme.ensureLoaded();
+    WidgetsBinding.instance.addObserver(this);
+    SomaHomeWidget.refreshBalance();
+    SomaHomeWidget.listenForLaunch(
+      openChat: () => _openTab(0),
+      openTopUp: () => _openTab(1),
+      openMessages: () => _openTab(2),
+    );
+    SomaHomeWidget.maybeRequestPin();
+    SomaChargeReminder.start();
+  }
+
+  /// Opened from the widget or the low-balance reminder: close any sheet or
+  /// dialog and show the tab.
+  void _openTab(int index) {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route is! PopupRoute);
+    currentIndex.value = index;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) SomaHomeWidget.refreshBalance();
   }
 
   @override
   void dispose() {
     currentIndex.removeListener(_onIndexChanged);
+    SomaRobotTheme.background.removeListener(_onIndexChanged);
+    SomaRobotTheme.floating.removeListener(_onIndexChanged);
+    _soma.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -2978,62 +3222,209 @@ class _DashboardNavState extends State<DashboardNav> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: currentIndex.value == 1 ? somaOrange : myColor,
+      // On the AI tab, match the parent's chosen chat background.
+      backgroundColor: currentIndex.value == 0
+          ? SomaRobotTheme.background.value.color
+          : myColor,
       body: currentIndex.value == 0
-          ? HomeScreen()
-          : currentIndex.value == 1
-          ? ChangeNotifierProvider<ValuesProvider>(
-              create: (_) => ValuesProvider(),
-              child: Kaascan(),
+          ? ChangeNotifierProvider<ValuesProvider>.value(
+              value: _soma,
+              child: const Kaascan(),
             )
-          : currentIndex.value == 2
+          : currentIndex.value == 1
           ? Students()
-          : TransactionsScreen(),
-      bottomNavigationBar: Container(
+          : const MessagesScreen(),
+      bottomNavigationBar: _buildBottomBar(),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    final bar = Container(
         height: 80,
-        margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        margin: const EdgeInsets.fromLTRB(
+          SomaNavGeometry.sideMargin,
+          0,
+          SomaNavGeometry.sideMargin,
+          24,
+        ),
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 191, 210, 255),
+          color: SomaNavGeometry.barColor(_navAccent),
           borderRadius: BorderRadius.circular(30),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildNavItem(0, CupertinoIcons.home),
-            _buildNavItem(1, Icons.psychology_rounded),
-            _buildNavItem(2, CupertinoIcons.person_2),
-            _buildNavItem(3, CupertinoIcons.time),
+            _buildRobotNavItem(),
+            _buildNavItem(1, CupertinoIcons.person_2),
+            _buildNavItem(2, CupertinoIcons.chat_bubble_2, badge: StudentMessages.unread),
           ],
+        ),
+      );
+    if (currentIndex.value == 0 || !SomaRobotTheme.floating.value) return bar;
+    // Other tabs: the robot rises out of its tab as a tappable assistant.
+    final cx = SomaNavGeometry.robotCenterX(MediaQuery.sizeOf(context).width);
+    return SizedBox(
+      height: 104 + _robotLift,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(left: 0, right: 0, bottom: 0, child: bar),
+          Positioned(
+            left: cx - 34,
+            top: 0,
+            width: 68,
+            height: _robotLift + 44,
+            child: Semantics(
+              button: true,
+              label: 'Ask Soma',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _openSomaSheet,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: SomaNavRobot(selected: false, size: 54),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Soma's chat as a sheet over the current tab, sharing the AI tab's
+  /// conversation.
+  void _openSomaSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: ChangeNotifierProvider<ValuesProvider>.value(
+            value: _soma,
+            child: Kaascan(
+              embedded: true,
+              onExpand: () {
+                Navigator.pop(sheet);
+                currentIndex.value = 0;
+              },
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon) {
-    bool isSelected = currentIndex.value == index;
+  /// The nav follows the page behind it: the parent's chat background on the
+  /// AI tab, the app blue elsewhere.
+  Color get _navAccent => currentIndex.value == 0
+      ? SomaRobotTheme.background.value.color
+      : myColor;
+
+  Widget _buildRobotNavItem() {
+    final isSelected = currentIndex.value == 0;
+    if (!isSelected && SomaRobotTheme.floating.value) {
+      // The floating robot above the bar takes this slot's place.
+      return const SizedBox(width: SomaNavGeometry.itemSize, height: 48);
+    }
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: 'Soma AI',
+      child: GestureDetector(
+        onTap: () => currentIndex.value = 0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: isSelected ? _navAccent : Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: Center(child: SomaNavRobot(selected: isSelected, size: 44)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, {ValueNotifier<int>? badge}) {
+    final isSelected = currentIndex.value == index;
+    final item = AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isSelected ? _navAccent : Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: isSelected ? myWhite : _navAccent, size: 24),
+    );
     return GestureDetector(
       onTap: () {
         currentIndex.value = index;
-     
       },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? myColor
-              : const Color.fromARGB(255, 255, 255, 255),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: isSelected ? myWhite : myColor, size: 24),
-      ),
+      child: badge == null
+          ? item
+          : ValueListenableBuilder<int>(
+              valueListenable: badge,
+              builder: (_, count, child) => Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  child!,
+                  if (count > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 20),
+                        height: 20,
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6A00),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: SomaNavGeometry.barColor(_navAccent), width: 2),
+                        ),
+                        child: Text(
+                          count > 9 ? '9+' : '$count',
+                          style: const TextStyle(
+                            fontFamily: 'gilroy',
+                            fontSize: 10,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              child: item,
+            ),
     );
   }
 }
 
 // Global Color constants (Unifying with the new palette)
 const Color navIconColor = Color(0xFFC6F400);
-// Same background as the splash, onboarding and auth screens
-const Color somaOrange = Color.fromARGB(255, 255, 60, 0);
 const Color myColor = Color.fromARGB(255, 0, 34, 255); // Lime Green
 const Color myWhite = Colors.white;
 const Color myBlack = Color(0xFF121212); // Deep Black

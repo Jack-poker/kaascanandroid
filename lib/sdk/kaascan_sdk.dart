@@ -10,6 +10,9 @@ import 'package:device_info_plus/device_info_plus.dart';
 import "package:kaascan/Api/config.dart";
 import "package:dio/dio.dart" show Options;
 import "package:kaascan/services/language_service.dart";
+import "package:kaascan/services/soma_home_widget.dart";
+import "package:kaascan/screens/payment_success_screen.dart" show PaymentCelebration;
+import "package:kaascan/provider/values_provider.dart" show ChatAttachment;
 import "package:ntfy/ntfy.dart";
 import "package:shared_preferences/shared_preferences.dart";
 import 'package:http/http.dart' as http;
@@ -121,11 +124,19 @@ class kaascan_sdk {
   }
 
   /// Starts listening on the ntfy stream and subscribes to [kcntoken] topic.
+  static Timer? _widgetRefresh;
+
   Future<void> startListening(String kcntoken) async {
     final ntfyPlugin = Ntfy();
 
     ntfyPlugin.messages.listen((String messageJson) {
       debugPrint("[*] Received ntfy message: $messageJson");
+      // A child's card-tap message or a balance change: keep the home-screen
+      // widget's balance and message badge current.
+      _widgetRefresh?.cancel();
+      _widgetRefresh = Timer(const Duration(seconds: 2), SomaHomeWidget.refreshBalance);
+      // A confirmed top-up: celebrate it with the receipt.
+      PaymentCelebration.handlePush(messageJson);
       // TODO: show local notification when app is in background
     });
 
@@ -204,6 +215,9 @@ class kaascan_sdk {
     String text, {
     String? focusStudentId,
     List<Map<String, String>> history = const [],
+    String? engine,
+    List<ChatAttachment> attachments = const [],
+    int? studentMessageId,
   }) async {
     try {
       String baseUrl = Base_Url;
@@ -221,9 +235,23 @@ class kaascan_sdk {
           "lang": languageService.currentLanguageCode == 'en'
               ? 'rw'
               : languageService.currentLanguageCode,
-          if (focusStudentId != null && focusStudentId.isNotEmpty)
-            "context": {"student_id": focusStudentId},
+          if ((focusStudentId != null && focusStudentId.isNotEmpty) || studentMessageId != null)
+            "context": {
+              if (focusStudentId != null && focusStudentId.isNotEmpty) "student_id": focusStudentId,
+              // "Ask Soma" on a child's message: Soma explains it in the child's language.
+              if (studentMessageId != null) "student_message_id": studentMessageId,
+            },
           if (history.isNotEmpty) "history": history,
+          if (engine != null) "engine": engine,
+          if (attachments.isNotEmpty)
+            "attachments": [
+              for (final a in attachments)
+                {
+                  "name": a.name,
+                  "mime": a.mime,
+                  "data": base64Encode(a.bytes),
+                },
+            ],
         },
         options: Options(
           headers: {
@@ -232,7 +260,7 @@ class kaascan_sdk {
           },
           // The AI engine may think for a while before the no-AI engine
           // takes over; the app-wide 10 s limit would cut that short.
-          sendTimeout: const Duration(seconds: 15),
+          sendTimeout: Duration(seconds: attachments.isEmpty ? 15 : 45),
           receiveTimeout: const Duration(seconds: 40),
         ),
       );

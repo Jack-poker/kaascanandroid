@@ -1,6 +1,6 @@
+import 'package:kaascan/components/soma_robot.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 
 /// Smart thinking indicator with rotating Kinyarwanda phrases and
 /// animated dots. Cycles through contextual status messages so the
@@ -94,54 +94,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── AI avatar ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0019CD), Color(0xFF4D6FE8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF0019CD).withValues(alpha: 0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
-                  ? CachedNetworkImageWrapper(
-                      imageUrl: widget.avatarUrl!,
-                      fit: BoxFit.cover,
-                      borderRadius: BorderRadius.circular(16),
-                      errorWidget: const Icon(
-                        Icons.smart_toy,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      placeholder: const Icon(
-                        Icons.smart_toy,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    )
-                  : const Icon(
-                      Icons.smart_toy,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-            ),
-          ),
+          const SomaAvatar(mood: SomaMood.thinking),
 
           const SizedBox(width: 8),
 

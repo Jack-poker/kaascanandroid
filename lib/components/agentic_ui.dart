@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kaascan/components/soma_robot.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 
 /// Agentic UI for the Somakadi assistant.
@@ -10,7 +11,7 @@ import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 /// the parent's language, so nothing here needs translating.
 ///
 /// Block kinds: `balance`, `children`, `transactions`, `amount_picker`,
-/// `topup_confirm`, `wallet`. Unknown kinds are skipped, so a newer backend
+/// `topup_confirm`, `wallet`, `student_code_input`. Unknown kinds are skipped, so a newer backend
 /// never breaks an older app.
 
 /// Result of asking the host screen to carry out a confirmed top-up.
@@ -126,6 +127,8 @@ class AgenticBlocks extends StatelessWidget {
         return _TopupConfirmCard(block: block, onConfirm: onConfirmTopup);
       case 'wallet':
         return _WalletCard(block: block);
+      case 'student_code_input':
+        return _StudentCodeCard(block: block, onSend: onSend);
     }
     return null;
   }
@@ -824,6 +827,157 @@ class _AmountPickerCard extends StatelessWidget {
                 ],
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── student code ────────────────────────────────────────────────────────────
+
+/// Adding a child: the parent types the child's student code and Soma looks
+/// it up. Only a code finds a child, never a name.
+class _StudentCodeCard extends StatefulWidget {
+  final Map<dynamic, dynamic> block;
+  final AgenticSend onSend;
+  const _StudentCodeCard({required this.block, required this.onSend});
+
+  @override
+  State<_StudentCodeCard> createState() => _StudentCodeCardState();
+}
+
+class _StudentCodeCardState extends State<_StudentCodeCard> {
+  late final TextEditingController _code =
+      TextEditingController(text: _str(widget.block, 'value'));
+  bool _sent = false;
+
+  int get _digits {
+    final n = _num(widget.block['digits']).round();
+    return n > 0 ? n : 8;
+  }
+
+  bool get _ready => !_sent && _code.text.length == _digits;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_ready) return;
+    HapticFeedback.mediumImpact();
+    FocusScope.of(context).unfocus();
+    setState(() => _sent = true);
+    final template = _str(widget.block, 'message');
+    widget.onSend(
+      template.contains('{code}')
+          ? template.replaceAll('{code}', _code.text)
+          : _code.text,
+      null,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = _str(widget.block, 'hint');
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: somaBrandOrange.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const IgnorePointer(child: SomaAvatar(size: 38)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CardTitle(_str(widget.block, 'title')),
+                    if (hint.isNotEmpty)
+                      Text(
+                        hint,
+                        style: const TextStyle(
+                          fontFamily: _body,
+                          fontSize: 13,
+                          color: _Palette.muted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _code,
+            enabled: !_sent,
+            autofocus: false,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.search,
+            maxLength: _digits,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _submit(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: _display,
+              fontSize: 24,
+              letterSpacing: 6,
+              color: _Palette.ink,
+            ),
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: '•' * _digits,
+              hintStyle: TextStyle(
+                fontSize: 22,
+                letterSpacing: 6,
+                color: _Palette.muted.withValues(alpha: 0.5),
+              ),
+              filled: true,
+              fillColor: _Palette.tint,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: _Palette.blue, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton.icon(
+              onPressed: _ready ? _submit : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: _Palette.blue,
+                disabledBackgroundColor: _Palette.line,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: Icon(
+                _sent ? Icons.check_rounded : Icons.person_search_rounded,
+              ),
+              label: Text(
+                _str(widget.block, 'button'),
+                style: const TextStyle(fontFamily: _display, fontSize: 16),
+              ),
+            ),
           ),
         ],
       ),

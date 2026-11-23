@@ -14,6 +14,8 @@ class SomaAudio {
   final AudioPlayer _tick = AudioPlayer();
   final AudioPlayer _done = AudioPlayer();
   final AudioPlayer _send = AudioPlayer();
+  final AudioPlayer _squish = AudioPlayer();
+  final AudioPlayer _boing = AudioPlayer();
 
   bool _ready = false;
   bool enabled = true;
@@ -24,6 +26,14 @@ class SomaAudio {
       await _tick.setSource(AssetSource('sound/tick.wav'));
       await _done.setSource(AssetSource('sound/done.wav'));
       await _send.setSource(AssetSource('sound/send.wav'));
+      await _squish.setPlayerMode(PlayerMode.lowLatency);
+      await _boing.setPlayerMode(PlayerMode.lowLatency);
+      await _squish.setSource(AssetSource('sound/squish.wav'));
+      await _boing.setSource(AssetSource('sound/boing.wav'));
+      await _squish.setVolume(0.55);
+      await _boing.setVolume(0.6);
+      await _squish.setReleaseMode(ReleaseMode.stop);
+      await _boing.setReleaseMode(ReleaseMode.stop);
       await _tick.setVolume(0.25);
       await _done.setVolume(0.65);
       await _send.setVolume(0.60);
@@ -64,10 +74,31 @@ class SomaAudio {
     } catch (_) {}
   }
 
+  /// The robot is squeezed: a soft rubbery squeak.
+  Future<void> onSquish() => _play(_squish, HapticFeedback.lightImpact);
+
+  /// The robot springs back: a bouncy boing.
+  Future<void> onBoing() => _play(_boing, HapticFeedback.selectionClick);
+
+  Future<void> _play(AudioPlayer player, Future<void> Function() haptic) async {
+    if (!enabled) return;
+    haptic();
+    if (!_ready) {
+      await init();
+      if (!_ready) return;
+    }
+    try {
+      await player.stop();
+      await player.resume();
+    } catch (_) {}
+  }
+
   void dispose() {
     _tick.dispose();
     _done.dispose();
     _send.dispose();
+    _squish.dispose();
+    _boing.dispose();
     _ready = false;
   }
 }

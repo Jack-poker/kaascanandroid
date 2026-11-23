@@ -20,12 +20,16 @@ class SendMoneySheet extends StatefulWidget {
   final String parentName;
   final Function() onTransferSuccess;
 
+  /// Pre-filled amount, e.g. what the child asked for in a card-tap message.
+  final double? initialAmount;
+
   const SendMoneySheet({
     super.key,
     required this.student,
     required this.parentBalance,
     required this.parentName,
     required this.onTransferSuccess,
+    this.initialAmount,
   });
 
   @override
@@ -47,6 +51,8 @@ class _SendMoneySheetState extends State<SendMoneySheet> {
   @override
   void initState() {
     super.initState();
+    final asked = widget.initialAmount;
+    if (asked != null && asked > 0) _amount = asked.round().toString();
     // Simulate initial data loading for skeleton effect
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) {
