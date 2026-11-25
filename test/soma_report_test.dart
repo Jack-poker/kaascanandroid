@@ -39,9 +39,13 @@ void main() {
     expect(report.studentName, 'Ineza Deborah');
     expect(report.schoolName, 'College Maranatha');
     expect(report.subjects, isNotEmpty);
-    expect(report.overallPercent, closeTo(59.4, 0.6));
-    expect(report.subjects.first.displayPercent, closeTo(59.4, 0.6));
-    expect(report.strengths, isEmpty);
+    expect(report.overallPercent, closeTo(84.8, 0.6));
+    final kinyarwanda =
+        report.subjects.firstWhere((s) => s.shortName == 'Kinyarwanda');
+    final french = report.subjects.firstWhere((s) => s.shortName == 'French');
+    expect(kinyarwanda.displayPercent, closeTo(59.4, 0.6));
+    expect(french.displayPercent, closeTo(100, 0.1));
+    expect(report.strengths, isNotEmpty);
     expect(report.needsSupport, isNotEmpty);
     expect(report.toUiMap()['subjects'], isA<List>());
     expect(report.agentPrompt('rw'), contains('Ineza Deborah'));

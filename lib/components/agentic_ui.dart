@@ -97,6 +97,7 @@ class AgenticBlocks extends StatelessWidget {
   final List<dynamic> suggestions;
   final AgenticSend onSend;
   final AgenticConfirmTopup? onConfirmTopup;
+  final VoidCallback? onScanReport;
 
   const AgenticBlocks({
     super.key,
@@ -104,6 +105,7 @@ class AgenticBlocks extends StatelessWidget {
     required this.suggestions,
     required this.onSend,
     this.onConfirmTopup,
+    this.onScanReport,
   });
 
   /// True when [response] carries anything this widget can draw.
@@ -129,6 +131,8 @@ class AgenticBlocks extends StatelessWidget {
         return _WalletCard(block: block);
       case 'student_code_input':
         return _StudentCodeCard(block: block, onSend: onSend);
+      case 'report_scan':
+        return _ReportScanCard(block: block, onScan: onScanReport);
     }
     return null;
   }
@@ -1323,6 +1327,68 @@ class _TopupConfirmCardState extends State<_TopupConfirmCard> {
       ),
     );
   }
+}
+
+// ── report scan ───────────────────────────────────────────────────────────
+
+class _ReportScanCard extends StatelessWidget {
+  final Map<dynamic, dynamic> block;
+  final VoidCallback? onScan;
+  const _ReportScanCard({required this.block, required this.onScan});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _str(block, 'title');
+    final message = _str(block, 'message');
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.isNotEmpty) ...[
+            _CardTitle(title),
+            const SizedBox(height: 6),
+          ],
+          if (message.isNotEmpty) ...[
+            Text(
+              message,
+              style: TextStyle(
+                color: _Palette.ink.withValues(alpha: 0.82),
+                fontFamily: _body,
+                fontWeight: FontWeight.w500,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: onScan,
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+              label: Text(
+                title.isNotEmpty ? title : labelScan(),
+                style: const TextStyle(
+                  fontFamily: _display,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: _Palette.blue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String labelScan() => "Scan report card";
 }
 
 // ── suggestion chips ────────────────────────────────────────────────────────

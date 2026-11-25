@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import 'package:kaascan/components/soma_robot.dart';
 import 'package:kaascan/services/language_service.dart';
 
-/// A colourful, animated summary of a scanned school report card.
+/// A clean, attractive summary of a scanned school report card.
 ///
-/// It is drawn inside Soma's chat bubble after the QR scan: the child and
-/// school at the top, an overall ring, one bar per subject in its own colour,
-/// the strengths and the subjects to support, and a button that opens the full
-/// PDF report.
+/// Mirrors the Somakadi agentic UI design language (palette, cards, student
+/// header, section titles) so the report feels like part of the app rather than
+/// a bolted-on screen.
+///
+/// Drawn inside Soma's chat bubble after the QR scan: child & school at the
+/// top, an overall ring, one bar per subject, strengths / support tags, home
+/// lessons, and a button that opens the full PDF report.
 class SomaReportCard extends StatelessWidget {
   const SomaReportCard({
     super.key,
@@ -20,12 +21,25 @@ class SomaReportCard extends StatelessWidget {
   final Map<dynamic, dynamic> report;
   final VoidCallback? onSeeReport;
 
+  // ── palette (mirrors agentic_ui.dart) ───────────────────────────────────
+
+  static const blue = Color.fromARGB(255, 0, 25, 205);
+  static const ink = Color(0xFF1A1F36);
+  static const muted = Color(0xFF6B7280);
+  static const tint = Color(0xFFF3F5FF);
+  static const line = Color(0xFFE8EBF5);
+  static const success = Color(0xFF0E9F6E);
+  static const danger = Color(0xFFD92D20);
+
+  static const _display = 'gilroy';
+  static const _body = 'gilroy-light';
+
   static const _subjectColors = [
-    Color(0xFF6366F1),
+    blue,
     Color(0xFF06B6D4),
-    Color(0xFF10B981),
+    success,
     Color(0xFFF59E0B),
-    Color(0xFFEF4444),
+    danger,
     Color(0xFF8B5CF6),
     Color(0xFFEC4899),
     Color(0xFF14B8A6),
@@ -60,32 +74,31 @@ class SomaReportCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: 0.10),
             blurRadius: 18,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           _header(gradeColor),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
             child: _overallRow(gradeColor),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
             child: Column(
               children: [
                 for (var i = 0; i < _subjects.length; i++)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
+                    padding: const EdgeInsets.only(bottom: 11),
                     child: _subjectRow(
                       _subjects[i],
                       _subjectColors[i % _subjectColors.length],
@@ -97,21 +110,21 @@ class SomaReportCard extends StatelessWidget {
           ),
           if (_strengths.isNotEmpty || _needsSupport.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: _tags(),
             ),
           if (_summary.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
               child: _somaNote(),
             ),
           if (_homeTips.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: _homeLessons(),
             ),
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
             child: _reportButton(),
           ),
         ],
@@ -123,115 +136,99 @@ class SomaReportCard extends StatelessWidget {
 
   Widget _header(Color gradeColor) {
     final where = [_school, _district].where((s) => s.isNotEmpty).join(' · ');
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1E1B4B), Color(0xFF6D28D9), Color(0xFFDB2777)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.16),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.35),
-                width: 1.5,
-              ),
-            ),
-            alignment: Alignment.center,
-            child: SizedBox(
-              width: 34,
-              height: 34,
-              child: OverflowBox(
-                maxWidth: 78,
-                maxHeight: 78,
-                child: SomaRobot(
-                  size: 78,
-                  floating: false,
-                  color: SomaRobotColor.purple,
-                ),
+    return Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: tint,
+            shape: BoxShape.circle,
+            border: Border.all(color: line, width: 1.5),
+          ),
+          child: SizedBox(
+            width: 30,
+            height: 30,
+            child: OverflowBox(
+              maxWidth: 70,
+              maxHeight: 70,
+              child: SomaRobot(
+                size: 70,
+                floating: false,
+                color: SomaRobotColor.purple,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _studentName.isEmpty ? _t('Report card', 'Raporo', 'Bulletin') : _studentName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: ink,
+                  fontFamily: _display,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  height: 1.1,
+                ),
+              ),
+              if (where.isNotEmpty) ...[
+                const SizedBox(height: 3),
                 Text(
-                  _studentName.isEmpty ? _t('Report card', 'Raporo', 'Bulletin') : _studentName,
+                  where,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
+                  style: TextStyle(
+                    color: muted,
+                    fontFamily: _body,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
                   ),
                 ),
-                if (where.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    where,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white.withValues(alpha: 0.78),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-            decoration: BoxDecoration(
-              color: gradeColor,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: gradeColor.withValues(alpha: 0.55),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _grade,
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  _t('GRADE', 'ICYICIRO', 'NOTE'),
-                  style: GoogleFonts.outfit(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: gradeColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: gradeColor.withValues(alpha: 0.35)),
           ),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _grade,
+                style: TextStyle(
+                  color: gradeColor,
+                  fontFamily: _display,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                  height: 1,
+                ),
+              ),
+              Text(
+                _t('GRADE', 'ICYICIRO', 'NOTE'),
+                style: TextStyle(
+                  color: muted,
+                  fontFamily: _display,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 8,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -240,102 +237,112 @@ class SomaReportCard extends StatelessWidget {
   Widget _overallRow(Color gradeColor) {
     final pct = _overall.clamp(0, 100).toDouble();
     final decisionColor =
-        _decision.toUpperCase() == 'REPEAT' ? const Color(0xFFDC2626) : const Color(0xFF15803D);
-    return Row(
+        _decision.toUpperCase() == 'REPEAT' ? danger : success;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 76,
-          height: 76,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 76,
-                height: 76,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: pct / 100),
-                  duration: const Duration(milliseconds: 900),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, value, _) => CircularProgressIndicator(
-                    value: value,
-                    strokeWidth: 8,
-                    strokeCap: StrokeCap.round,
-                    backgroundColor: gradeColor.withValues(alpha: 0.14),
-                    valueColor: AlwaysStoppedAnimation<Color>(gradeColor),
-                  ),
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${pct.round()}%',
-                    style: GoogleFonts.outfit(
-                      color: const Color(0xFF11142D),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
+        Row(
+          children: [
+          SizedBox(
+            width: 70,
+            height: 70,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 70,
+                  height: 70,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: pct / 100),
+                      duration: const Duration(milliseconds: 900),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) => CircularProgressIndicator(
+                        value: value,
+                        strokeWidth: 8,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: gradeColor.withValues(alpha: 0.14),
+                        valueColor: AlwaysStoppedAnimation<Color>(gradeColor),
+                      ),
                     ),
                   ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${pct.round()}%',
+                        style: TextStyle(
+                          color: ink,
+                          fontFamily: _display,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 20,
+                          height: 1,
+                        ),
+                      ),
+                      Text(
+                        _t('overall', 'rusange', 'général'),
+                        style: TextStyle(
+                          color: muted,
+                          fontFamily: _body,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    _t('overall', 'rusange', 'général'),
-                    style: GoogleFonts.outfit(
-                      color: const Color(0xFF11142D).withValues(alpha: 0.55),
-                      fontSize: 9,
+                    _t('Overall performance', 'Amanota rusange', 'Résultat général'),
+                    style: TextStyle(
+                      color: ink,
+                      fontFamily: _display,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_subjects.length} ${_t('subjects', 'amasomo', 'matières')}',
+                    style: TextStyle(
+                      color: muted,
+                      fontFamily: _body,
                       fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _t('Overall performance', 'Amanota rusange', 'Résultat général'),
-                style: GoogleFonts.outfit(
-                  color: const Color(0xFF11142D),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${_subjects.length} ${_t('subjects', 'amasomo', 'matières')}',
-                style: GoogleFonts.outfit(
-                  color: const Color(0xFF11142D).withValues(alpha: 0.55),
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _miniChip(
-                    Icons.emoji_events_rounded,
-                    _t('Conduct', 'Imyitwarire', 'Conduite'),
-                    '${_conduct.toStringAsFixed(0)}/${_conductMax.toStringAsFixed(0)}',
-                    const Color(0xFF0EA5E9),
-                  ),
-                  _miniChip(
-                    _decision.toUpperCase() == 'REPEAT'
-                        ? Icons.replay_rounded
-                        : Icons.verified_rounded,
-                    _t('Decision', 'Icyemezo', 'Décision'),
-                    _decision.toUpperCase() == 'REPEAT'
-                        ? _t('Repeat', 'Asubiramo', 'Reprend')
-                        : _t('Promoted', 'Aragera', 'Promu'),
-                    decisionColor,
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _miniChip(
+                        Icons.emoji_events_rounded,
+                        _t('Conduct', 'Imyitwarire', 'Conduite'),
+                        '${_conduct.toStringAsFixed(0)}/${_conductMax.toStringAsFixed(0)}',
+                        blue,
+                      ),
+                      _miniChip(
+                        _decision.toUpperCase() == 'REPEAT'
+                            ? Icons.replay_rounded
+                            : Icons.verified_rounded,
+                        _t('Decision', 'Icyemezo', 'Décision'),
+                        _decision.toUpperCase() == 'REPEAT'
+                            ? _t('Repeat', 'Asubiramo', 'Reprend')
+                            : _t('Promoted', 'Aragera', 'Promu'),
+                        decisionColor,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -345,29 +352,31 @@ class SomaReportCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
+          Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
           Text(
             '$label ',
-            style: GoogleFonts.outfit(
-              color: const Color(0xFF11142D).withValues(alpha: 0.6),
-              fontSize: 10,
+            style: TextStyle(
+              color: muted,
+              fontFamily: _body,
               fontWeight: FontWeight.w600,
+              fontSize: 10,
             ),
           ),
           Text(
             value,
-            style: GoogleFonts.outfit(
+            style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontFamily: _display,
               fontWeight: FontWeight.w800,
+              fontSize: 10.5,
             ),
           ),
         ],
@@ -384,63 +393,66 @@ class SomaReportCard extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 86,
+          width: 80,
           child: Text(
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.outfit(
-              color: const Color(0xFF11142D),
-              fontSize: 12,
+            style: TextStyle(
+              color: ink,
+              fontFamily: _body,
               fontWeight: FontWeight.w600,
+              fontSize: 12.5,
             ),
           ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 7),
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: pct / 100),
-              duration: Duration(milliseconds: 700 + index * 70),
+              duration: Duration(milliseconds: 700 + index * 60),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) => LinearProgressIndicator(
                 value: value,
-                minHeight: 8,
-                backgroundColor: color.withValues(alpha: 0.12),
+                minHeight: 9,
+                backgroundColor: color.withValues(alpha: 0.10),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 7),
         SizedBox(
-          width: 38,
+          width: 30,
           child: Text(
             '${pct.round()}%',
             textAlign: TextAlign.right,
-            style: GoogleFonts.outfit(
-              color: const Color(0xFF11142D).withValues(alpha: 0.7),
-              fontSize: 11,
+            style: TextStyle(
+              color: muted,
+              fontFamily: _body,
               fontWeight: FontWeight.w600,
+              fontSize: 11.5,
             ),
           ),
         ),
         const SizedBox(width: 6),
         Container(
-          width: 22,
-          height: 22,
+          width: 24,
+          height: 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(7),
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             grade,
-            style: GoogleFonts.outfit(
+            style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontFamily: _display,
               fontWeight: FontWeight.w800,
+              fontSize: 11,
             ),
           ),
         ),
@@ -452,20 +464,20 @@ class SomaReportCard extends StatelessWidget {
 
   Widget _tags() {
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         for (final name in _strengths)
           _tag(
             Icons.star_rounded,
             name,
-            const Color(0xFF15803D),
+            success,
           ),
         for (final name in _needsSupport)
           _tag(
             Icons.support_rounded,
             name,
-            const Color(0xFFD97706),
+            danger,
           ),
       ],
     );
@@ -473,23 +485,24 @@ class SomaReportCard extends StatelessWidget {
 
   Widget _tag(IconData icon, String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 4),
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
           Text(
             label,
-            style: GoogleFonts.outfit(
+            style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontFamily: _body,
               fontWeight: FontWeight.w700,
+              fontSize: 11,
             ),
           ),
         ],
@@ -501,39 +514,47 @@ class SomaReportCard extends StatelessWidget {
 
   Widget _somaNote() {
     return Container(
-      padding: const EdgeInsets.all(11),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF5F3FF), Color(0xFFFDF2F8)],
-        ),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.10)),
+        color: tint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: line),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
+          Container(
             width: 30,
             height: 30,
-            child: OverflowBox(
-              maxWidth: 70,
-              maxHeight: 70,
-              child: SomaRobot(
-                size: 70,
-                floating: false,
-                color: SomaRobotColor.orange,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: blue.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: OverflowBox(
+                maxWidth: 50,
+                maxHeight: 50,
+                child: SomaRobot(
+                  size: 50,
+                  floating: false,
+                  color: SomaRobotColor.orange,
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               _summary,
-              style: GoogleFonts.outfit(
-                color: const Color(0xFF11142D).withValues(alpha: 0.82),
-                fontSize: 12,
-                height: 1.4,
+              style: TextStyle(
+                color: ink.withValues(alpha: 0.82),
+                fontFamily: _body,
                 fontWeight: FontWeight.w500,
+                fontSize: 12.5,
+                height: 1.45,
               ),
             ),
           ),
@@ -545,57 +566,66 @@ class SomaReportCard extends StatelessWidget {
   // ── home lessons ────────────────────────────────────────────────────────
 
   Widget _homeLessons() {
-    const green = Color(0xFF15803D);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: green.withValues(alpha: 0.14)),
+        color: success.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: success.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.school_rounded, size: 16, color: green),
-              const SizedBox(width: 6),
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: success,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.school_rounded, color: Colors.white, size: 11),
+              ),
+              const SizedBox(width: 8),
               Text(
                 _t('Lessons to do at home',
                     'Ibyo mwakorera mu rugo', 'Leçons à la maison'),
-                style: GoogleFonts.outfit(
-                  color: green,
-                  fontSize: 12,
+                style: TextStyle(
+                  color: success,
+                  fontFamily: _display,
                   fontWeight: FontWeight.w800,
+                  fontSize: 12,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           for (final tip in _homeTips)
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 7),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: 6,
                     height: 6,
-                    margin: const EdgeInsets.only(top: 5),
+                    margin: const EdgeInsets.only(top: 6),
                     decoration: const BoxDecoration(
-                      color: green,
+                      color: success,
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Text(
                       tip,
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFF11142D).withValues(alpha: 0.78),
-                        fontSize: 12,
-                        height: 1.35,
+                      style: TextStyle(
+                        color: ink.withValues(alpha: 0.78),
+                        fontFamily: _body,
                         fontWeight: FontWeight.w500,
+                        fontSize: 12.5,
+                        height: 1.4,
                       ),
                     ),
                   ),
@@ -618,39 +648,38 @@ class SomaReportCard extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF7C3AED), Color(0xFFDB2777)],
+              colors: [blue, Color(0xFF0033CC)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+                color: blue.withValues(alpha: 0.35),
                 blurRadius: 14,
                 offset: const Offset(0, 5),
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                const Icon(Icons.picture_as_pdf_rounded,
-                    color: Colors.white, size: 20),
-                const SizedBox(width: 9),
+                const Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     _t('See the full report',
                         'Reba raporo yose', 'Voir le bulletin complet'),
-                    style: GoogleFonts.outfit(
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontFamily: _display,
                       fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
                     ),
                   ),
                 ),
-                const Icon(Icons.arrow_forward_rounded,
-                    color: Colors.white, size: 18),
+                const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
               ],
             ),
           ),
@@ -664,19 +693,19 @@ class SomaReportCard extends StatelessWidget {
   static Color _gradeColor(String grade) {
     switch (grade.toUpperCase()) {
       case 'A':
-        return const Color(0xFF15803D);
+        return success;
       case 'B':
-        return const Color(0xFF0D9488);
+        return Color(0xFF0D9488);
       case 'C':
-        return const Color(0xFF2563EB);
+        return blue;
       case 'D':
-        return const Color(0xFF7C3AED);
+        return Color(0xFF7C3AED);
       case 'E':
-        return const Color(0xFFD97706);
+        return Color(0xFFD97706);
       case 'S':
-        return const Color(0xFFEA580C);
+        return Color(0xFFEA580C);
       default:
-        return const Color(0xFFDC2626);
+        return danger;
     }
   }
 

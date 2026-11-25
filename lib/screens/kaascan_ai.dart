@@ -1598,6 +1598,7 @@ class _KaascanState extends State<Kaascan> {
                               onUiSend: (message, studentId) =>
                                   _handleUiSend(message, studentId, value),
                               onConfirmTopup: _confirmTopup,
+                              onScanReport: () => _startReportScan(context),
                               onLinkStudent: (id, name, photo) =>
                                   _linkStudentToAccount(id, name, photo, value),
                             ),
@@ -1898,7 +1899,7 @@ class _SomaReportScanSheet extends StatefulWidget {
 }
 
 class _SomaReportScanSheetState extends State<_SomaReportScanSheet>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const Color _blue = Color.fromARGB(255, 0, 34, 255);
 
   late final AnimationController _sweep = AnimationController(

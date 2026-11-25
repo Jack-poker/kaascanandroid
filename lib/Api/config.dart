@@ -1,4 +1,4 @@
-bool isProduction = true; // be carefully or you waste time !
+bool isProduction = false; // be carefully or you waste time !
 // ignore: non_constant_identifier_names
 String get Base_Url => isProduction
     ? "https://api.v0.kaascan.com" // this is set for production ready

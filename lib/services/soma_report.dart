@@ -16,9 +16,17 @@ class SomaSubject {
   final int annualMax;
   final List<double> termPercents;
 
-  /// Raw yearly percentage. Some cards encode impossible maxima, so callers
-  /// should use [displayPercent] for anything a parent sees.
-  double get percent => annualMax == 0 ? 0 : (annualTotal / annualMax) * 100;
+  /// Authoritative term-wise percentage (from `block_7`), averaged across
+  /// terms and clamped to 0-100. Falls back to annual total/max when terms
+  /// are missing, since some cards encode `block_7` as a raw mark instead of
+  /// a percentage.
+  double get percent {
+    if (termPercents.isNotEmpty) {
+      final total = termPercents.reduce((a, b) => a + b);
+      return (total / termPercents.length).clamp(0, 100).toDouble();
+    }
+    return annualMax == 0 ? 0 : (annualTotal / annualMax) * 100;
+  }
 
   double get displayPercent => percent.clamp(0, 100).toDouble();
 
@@ -96,14 +104,16 @@ class SomaReport {
         final term = _asMap(subject[key]);
         final termPercent = _percent(_first(term['block_7']));
         final termTotal = _int(_first(term['block_6']));
-        final termMax = _int(_first(term['block_3']));
+        final examTotal =
+            _int(_first(term['block_4'])) + _int(_first(term['block_5']));
+        // Same inference the PDF uses: block_3 is not reliable for every
+        // subject, but the term's exam total and percentage are.
+        final termMax = termPercent > 0
+            ? ((examTotal / termPercent) * 100).round()
+            : 180;
         terms.add(termPercent);
         annualTotal += termTotal;
-        annualMax += termMax > 0
-            ? termMax
-            : (termPercent > 0
-                ? ((termTotal / termPercent) * 100).round()
-                : 180);
+        annualMax += termMax > 0 ? termMax : 180;
       }
       subjects.add(
         SomaSubject(
@@ -119,10 +129,16 @@ class SomaReport {
       throw const FormatException('No marks were found on this report card.');
     }
 
-    final grandMax = subjects.fold<int>(0, (sum, s) => sum + s.annualMax);
-    final grandTotal = subjects.fold<int>(0, (sum, s) => sum + s.annualTotal);
-    final overall =
-        grandMax == 0 ? 0.0 : (grandTotal / grandMax * 100).clamp(0, 100).toDouble();
+    // Overall is the average of subject percentages (block_7 is authoritative
+    // for each term), so it stays consistent with what the card shows even
+    // when `block_7` is a raw mark for some subjects.
+    final overall = subjects.isEmpty
+        ? 0.0
+        : (subjects
+                .fold<double>(0, (sum, s) => sum + s.displayPercent) /
+            subjects.length)
+            .clamp(0, 100)
+            .toDouble();
 
     final conductList = (conduct['marks'] as List?)
             ?.map((e) => _int(e))

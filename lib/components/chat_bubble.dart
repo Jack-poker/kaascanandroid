@@ -47,6 +47,9 @@ class ChatBubble extends StatefulWidget {
   /// Called when the parent confirms a top-up card.
   final AgenticConfirmTopup? onConfirmTopup;
 
+  /// Asks the host screen to open the report-card QR scanner.
+  final VoidCallback? onScanReport;
+
   /// Links the child Soma found from a student code; true when it worked.
   final Future<bool> Function(String id, String name, String photoUrl)?
       onLinkStudent;
@@ -69,6 +72,7 @@ class ChatBubble extends StatefulWidget {
     this.onActiveStudentChanged,
     this.onUiSend,
     this.onConfirmTopup,
+    this.onScanReport,
     this.onLinkStudent,
     this.animate = true,
   });
@@ -556,6 +560,7 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                 onSend: (message, studentId) =>
                     widget.onUiSend?.call(message, studentId),
                 onConfirmTopup: widget.onConfirmTopup,
+                onScanReport: widget.onScanReport,
               ),
           ],
         ),
