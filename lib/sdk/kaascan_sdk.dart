@@ -18,10 +18,12 @@ import "package:shared_preferences/shared_preferences.dart";
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 
+
 /// SharedPreferences keys for kcn token management
 const String _kcnPrefKey = 'kcn_token';
 const String _kcnSubscribedPrefix = 'subscribed_topic_';
 const String _deviceUuidPrefKey = 'device_uuid';
+
 
 /// The custom ntfy server base URL
 const String _ntfyBaseUrl =

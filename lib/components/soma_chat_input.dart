@@ -60,8 +60,8 @@ const _maxBytes = 5 * 1024 * 1024;
 /// attachment reading is ready; they show as "Soon" meanwhile.
 const _attachmentsEnabled = false;
 
-/// Soma Report (scan a report card) in the "+" menu. Shows as "Soon" while off.
-const _somaReportEnabled = false;
+/// Soma Report (scan a report card) in the "+" menu.
+const _somaReportEnabled = true;
 
 class SomaChatInput extends StatelessWidget {
   const SomaChatInput({

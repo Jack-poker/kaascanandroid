@@ -7,8 +7,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # qaad_shared:
-  #   path: qaad_sdk
+  qaad_sdk:
+    path: qaad_sdk
 
   cupertino_icons: ^1.0.8
   splasher: ^0.1.1
@@ -83,16 +83,19 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   icons_launcher: ^3.0.1
 icons_launcher:
-  image_path: assets/icon.png
+  image_path: assets/launcher/icon_legacy.png
   platforms:
     android:
       enable: true
-      image_path: assets/icon.png
-      notification_image: assets/icon.png
-      adaptive_background_image: assets/icon.png
-      adaptive_foreground_image: assets/icon.png
-      adaptive_round_image: assets/icon.png
-      adaptive_monochrome_image: assets/icon.png
+      image_path: assets/launcher/icon_legacy.png
+      notification_image: assets/launcher/adaptive_monochrome.png
+      adaptive_background_color: '#ffffff'
+      adaptive_foreground_image: assets/launcher/adaptive_foreground.png
+      adaptive_round_image: assets/launcher/icon_legacy.png
+      adaptive_monochrome_image: assets/launcher/adaptive_monochrome.png
+    ios:
+      enable: true
+      image_path: assets/launcher/playstore_512.png
 flutter:
   uses-material-design: true
   assets:

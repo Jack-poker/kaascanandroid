@@ -1,0 +1,22 @@
+name: qaad_sdk
+description: BITS MANUPLATION AND MAPPING.
+version: 1.0.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.8.1
+
+# Add regular dependencies here.
+dependencies:
+  chalkdart: ^2.0.0
+  cli_table: ^1.0.2
+  convert: ^3.1.2
+  cryptography: ^2.9.0
+  pdf: ^3.13.1
+  pretty_print_json: ^1.0.1
+
+  # path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

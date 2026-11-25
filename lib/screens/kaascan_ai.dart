@@ -7,12 +7,12 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kaascan/sdk/kaascan_sdk.dart';
 import 'package:kaascan/services/soma_audio.dart';
 import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image/image.dart' as imglib;
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:pretty_print_json/pretty_print_json.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
@@ -43,8 +43,8 @@ import 'package:kaascan/dashboard/home.dart'
         purpleAccent;
 import 'package:kaascan/main.dart';
 import 'package:kaascan/provider/values_provider.dart';
-import 'package:kaascan/sdk/kaascan_sdk.dart';
 import 'package:kaascan/services/language_service.dart';
+import 'package:kaascan/services/soma_report.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 // Optional: if your SDK exposes these, keep them imported here.
 // import 'package:qaad_shared/qaad_sdk.dart';
@@ -85,6 +85,10 @@ class _KaascanState extends State<Kaascan> {
 
   /// Pending data for the linking flow (avoids fragile string parsing with URLs).
   Map<String, String>? _pendingLinkData;
+
+  /// The report card last scanned with Soma Report, kept so the PDF can be
+  /// regenerated without scanning again.
+  SomaReport? _activeReport;
 
   /// The child the conversation is currently about. The assistant sends it
   /// back with each answer and it is returned with the next question, so a
@@ -134,7 +138,6 @@ class _KaascanState extends State<Kaascan> {
 
     bool settled = false;
     Uint8List? payload;
-    String? decodedText;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -147,12 +150,6 @@ class _KaascanState extends State<Kaascan> {
           onDetect: (BarcodeCapture capture) {
             if (settled) return false;
 
-            final frame = capture.image;
-            if (frame == null) {
-              debugPrint('>>> no frame image');
-              return false;
-            }
-
             final bytes = capture.barcodes.firstOrNull?.rawBytes;
             if (bytes == null) {
               debugPrint('>>> not the card QR — retry');
@@ -162,13 +159,6 @@ class _KaascanState extends State<Kaascan> {
             settled = true;
             payload = bytes;
             debugPrint('>>> card payload: ${bytes.length} bytes');
-
-            try {
-              decodedText = null;
-              debugPrint('>>> decoded length: ${decodedText?.length}');
-            } catch (e, st) {
-              debugPrint('>>> decode failed: $e\n$st');
-            }
             return true;
           },
         ),
@@ -181,18 +171,75 @@ class _KaascanState extends State<Kaascan> {
 
     if (!mounted) return payload;
 
-    if (decodedText != null) {
-      // Attach the special action so a "reba" button appears on the bubble.
-      // Also carry the raw payload bytes forward so the PDF generator can use them.
-      valuesProvider.addAiResponse({
-        "ask_response": decodedText!,
-        "response": decodedText!,
-        "action_word": "reba",
-        "action_message": "SHOW_REPORT_PDF",
-        "_report_payload": payload,
-      });
-    } else if (settled && decodedText == null) {
-      valuesProvider.addAiError('Habaye ikosakora. Ongera ugerageze nyuma.');
+    if (payload == null) {
+      if (settled) {
+        valuesProvider.addAiError('Habaye ikosakora. Ongera ugerageze nyuma.');
+      }
+      return null;
+    }
+
+    late final SomaReport report;
+    try {
+      report = SomaReport.decode(payload!);
+    } catch (e, st) {
+      debugPrint('>>> report decode failed: $e\n$st');
+      valuesProvider.addAiError(
+        'Iyi raporo ntabwo yasomwe neza. Ongera usikane ikarita.',
+      );
+      return payload;
+    }
+
+    setState(() => _activeReport = report);
+    HapticFeedback.mediumImpact();
+
+    final language = languageService.currentLanguageCode;
+    final intro = report.introMessage(language);
+    final name =
+        report.studentName.isEmpty ? 'umwana wawe' : report.studentName;
+
+    valuesProvider.addUserMessage(
+      switch (language) {
+        'rw' => 'Soma, reba raporo ya $name.',
+        'fr' => 'Soma, regarde le bulletin de $name.',
+        _ => "Soma, look at $name's report card.",
+      },
+    );
+    valuesProvider.addAiResponse({
+      "ask_response": intro,
+      "response": intro,
+      "action_word": "reba",
+      "action_message": "SHOW_REPORT_PDF",
+      "_report_summary": report.toUiMap(language),
+      "_report_payload": payload,
+    });
+
+    // Let the agent talk about the report and suggest home lessons, right in
+    // the chat. The card above already shows the numbers; this adds the heart.
+    valuesProvider.updateWaitingask(true);
+    SomaAudio.instance.onSend();
+    try {
+      final res = await kaascan_sdk().ask_kaascan(
+        report.agentPrompt(language),
+        focusStudentId: _focusStudentId,
+        history: _recentHistory(valuesProvider),
+        engine: _engine.name,
+      );
+      if (!mounted) return payload;
+      if (res.isEmpty) {
+        valuesProvider.addAiError(
+          'Ntibyakunze kuganira ku raporo ubu. Ongera ubaze Soma ku manota.',
+        );
+      } else {
+        valuesProvider.addAiResponse(res);
+        HapticFeedback.mediumImpact();
+      }
+    } catch (e, st) {
+      debugPrint('>>> report agent failed: $e\n$st');
+      if (mounted) {
+        valuesProvider.addAiError(
+          'Ntibyakunze kuganira ku raporo ubu. Ongera ubaze Soma ku manota.',
+        );
+      }
     }
 
     return payload;
@@ -1197,20 +1244,25 @@ class _KaascanState extends State<Kaascan> {
 
   /// Builds and previews the report PDF from the last scanned payload.
   Future<void> _showReportPdf(ValuesProvider provider) async {
-    // Find the most recent bubble that carried a report payload.
-    final aiMessages =
-        provider.messages.where((m) => m.isAi).toList().reversed.toList();
-
-    Map<dynamic, dynamic>? message;
-    for (final m in aiMessages) {
-      if (m.askResponse != null &&
-          m.askResponse!["_report_payload"] != null) {
-        message = m.askResponse;
-        break;
+    // Prefer the report we just scanned; fall back to the newest bubble that
+    // carries a payload (e.g. when an earlier chat is reopened).
+    var report = _activeReport;
+    if (report == null) {
+      final aiMessages = provider.messages.where((m) => m.isAi).toList().reversed;
+      for (final m in aiMessages) {
+        final raw = m.askResponse?["_report_payload"];
+        if (raw is Uint8List) {
+          try {
+            report = SomaReport.decode(raw);
+            break;
+          } catch (e, st) {
+            debugPrint("[PDF] Stored report decode failed: $e\n$st");
+          }
+        }
       }
     }
 
-    if (message == null) {
+    if (report == null) {
       scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(
           content: Text("Nta raporo ibonetse. Ongera usikane ikarita."),
@@ -1220,11 +1272,8 @@ class _KaascanState extends State<Kaascan> {
       return;
     }
 
-    final Uint8List payload = message["_report_payload"] as Uint8List;
-
+    final active = report;
     try {
-      final decodedMap = null;
-
       if (!mounted) return;
       showDialog(
         context: context,
@@ -1234,24 +1283,15 @@ class _KaascanState extends State<Kaascan> {
         ),
       );
 
-      // final primary = Primary(
-      //   schoolStudentData:
-      //       decodedMap["schoolStudentData"] as Map<dynamic, dynamic>,
-      //   data: decodedMap["marks"] as List<dynamic>,
-      // );
-
-      final primary = null;
-      final Uint8List pdfBytes = await primary.generateReportPdf();
+      final Uint8List pdfBytes = await active.generatePdf();
 
       if (mounted) Navigator.of(context).pop();
 
-      final String studentName =
-          (decodedMap["schoolStudentData"]["student_data"]["fullname"] ?? "")
-              .toString();
-
+      final name =
+          active.studentName.isEmpty ? 'student' : active.studentName;
       await Printing.layoutPdf(
         onLayout: (_) async => pdfBytes,
-        name: "Report_$studentName.pdf",
+        name: "Report_$name.pdf",
       );
     } catch (e, st) {
       debugPrint("[PDF] Generation failed: $e\n$st");
@@ -1453,6 +1493,8 @@ class _KaascanState extends State<Kaascan> {
             ],
           ),
           ),
+          const SizedBox(height: 10),
+          const _KinyarwandaTagline(),
           const SizedBox(height: 12),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 320),
@@ -1543,7 +1585,8 @@ class _KaascanState extends State<Kaascan> {
                               avatarUrl:
                                   "https://yt3.ggpht.com/7z4pKV9YM3c-LfNzx1cgx3OfagWqUR9uZHQwiCsc9Jrr2sqdgtOS85AstsGehJn5opnrFmuz46I=s88-c-k-c0x00ffffff-no-rj",
                               responseData: msg.askResponse,
-                              animate: isNew,
+                              animate: isNew &&
+                                  msg.askResponse?['_report_summary'] == null,
                               onActionTapped: (actionMessage) =>
                                   _handleActionTap(actionMessage, value),
                               onSimulateAndShow:
@@ -1863,11 +1906,22 @@ class _SomaReportScanSheetState extends State<_SomaReportScanSheet>
     duration: const Duration(milliseconds: 1800),
   )..repeat(reverse: true);
 
+  /// A slow rainbow ring that shows off behind the robot when the card is read.
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  );
+
+  Timer? _colorTimer;
+  int _colorIndex = 0;
+
   _ScanStep _step = _ScanStep.bring;
 
   @override
   void dispose() {
+    _colorTimer?.cancel();
     _sweep.dispose();
+    _spin.dispose();
     super.dispose();
   }
 
@@ -1875,6 +1929,13 @@ class _SomaReportScanSheetState extends State<_SomaReportScanSheet>
     if (_step != _ScanStep.scanning || !widget.onDetect(capture)) return;
     HapticFeedback.mediumImpact();
     setState(() => _step = _ScanStep.found);
+    _spin.repeat();
+    _colorTimer?.cancel();
+    _colorTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      if (!mounted) return;
+      setState(() =>
+          _colorIndex = (_colorIndex + 1) % SomaRobotColor.values.length);
+    });
     Future<void>.delayed(const Duration(milliseconds: 1400), () {
       if (mounted) Navigator.of(context).pop();
     });
@@ -1886,7 +1947,11 @@ class _SomaReportScanSheetState extends State<_SomaReportScanSheet>
     return Container(
       height: height,
       decoration: const BoxDecoration(
-        color: _blue,
+        gradient: LinearGradient(
+          colors: [Color(0xFF0019CD), Color(0xFF3B0FA8), Color(0xFF7C3AED)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       clipBehavior: Clip.antiAlias,
@@ -2234,53 +2299,99 @@ class _SomaReportScanSheetState extends State<_SomaReportScanSheet>
   Widget _found() {
     return LayoutBuilder(
       key: const ValueKey(_ScanStep.found),
-      builder: (context, c) => Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  SomaRobot(
-                    size: (c.maxHeight * 0.45).clamp(120.0, 230.0),
-                    mood: SomaMood.idle,
-                    reaction: SomaMood.yes,
-                    reactionId: 1,
-                    floating: false,
-                  ),
-                  Positioned(
-                    right: 8,
-                    bottom: 18,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 450),
-                      curve: Curves.easeOutBack,
-                      builder: (context, t, child) =>
-                          Transform.scale(scale: t, child: child),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF16A34A),
-                          shape: BoxShape.circle,
+      builder: (context, c) {
+        final robotSize = (c.maxHeight * 0.45).clamp(120.0, 230.0);
+        final ringSize = robotSize * 0.64;
+        final color = SomaRobotColor.values[_colorIndex];
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    // A slow rainbow ring behind the robot.
+                    SizedBox(
+                      width: ringSize,
+                      height: ringSize,
+                      child: RotationTransition(
+                        turns: _spin,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const SweepGradient(
+                              colors: [
+                                somaBrandOrange,
+                                Color(0xFFFACC15),
+                                Color(0xFF22C55E),
+                                Color(0xFF06B6D4),
+                                Color(0xFF8B5CF6),
+                                Color(0xFFEC4899),
+                                somaBrandOrange,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.inner.withValues(alpha: 0.55),
+                                blurRadius: 30,
+                                spreadRadius: 6,
+                              ),
+                            ],
+                          ),
                         ),
-                        child: const Icon(Icons.check_rounded,
-                            color: Colors.white, size: 26),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              _caption(
-                'Report found!',
-                'Soma is reading the marks. The summary appears in the chat.',
-              ),
-            ],
+                    // The dark disc in the middle of the ring.
+                    Container(
+                      width: ringSize * 0.78,
+                      height: ringSize * 0.78,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1E1B4B),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SomaRobot(
+                      size: robotSize,
+                      mood: SomaMood.idle,
+                      reaction: SomaMood.yes,
+                      reactionId: 1,
+                      floating: false,
+                      color: color,
+                    ),
+                    Positioned(
+                      right: 8,
+                      bottom: 18,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 450),
+                        curve: Curves.easeOutBack,
+                        builder: (context, t, child) =>
+                            Transform.scale(scale: t, child: child),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF16A34A),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check_rounded,
+                              color: Colors.white, size: 26),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                _caption(
+                  'Report found!',
+                  'Soma is reading the marks. The summary appears in the chat.',
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -2850,50 +2961,125 @@ class _RotatingTipState extends State<_RotatingTip> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          'TRY ASKING',
-          style: GoogleFonts.outfit(
-            color: Colors.white.withValues(alpha: 0.65),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2,
-          ),
-        ),
+       
         const SizedBox(height: 8),
-        SizedBox(
-          width: math.min(320, MediaQuery.sizeOf(context).width - 48),
-          // Room for two lines at the user's text size, so long tips and
-          // large accessibility fonts never overflow or shift the layout.
-          height: MediaQuery.textScalerOf(context).scale(18) * 1.35 * 2 + 6,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 450),
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween(
-                  begin: const Offset(0, 0.25),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: child,
-              ),
-            ),
-            child: Align(
-              key: ValueKey(_index),
-              alignment: Alignment.topCenter,
-              child: Text(
-                '“${_tips[_index]}”',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ),
-        ),
+      
       ],
+    );
+  }
+}
+
+/// Kinyarwanda line under "Soma AI" on the empty chat. Each phrase comes in
+/// word by word (fade + small rise), a soft band of light sweeps across it,
+/// then it fades out for the next one. "Ubwenge buhangano" is the term for AI
+/// in Rwanda's official ICT glossary (Inkoranyamuga y'ikoranabuhanga).
+class _KinyarwandaTagline extends StatefulWidget {
+  const _KinyarwandaTagline();
+
+  @override
+  State<_KinyarwandaTagline> createState() => _KinyarwandaTaglineState();
+}
+
+class _KinyarwandaTaglineState extends State<_KinyarwandaTagline>
+    with SingleTickerProviderStateMixin {
+  static const _phrases = [
+    "Umufasha wawe w'ubwenge buhangano", // Your AI assistant
+    "Nkurikirana amafaranga y'ishuri y'abana bawe", // I watch your children's school money
+    "Mbaza ikintu cyose ku bana bawe", // Ask me anything about your children
+  ];
+
+  late final AnimationController _c;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5600),
+    )..addStatusListener((s) {
+        if (s == AnimationStatus.completed && mounted) {
+          setState(() => _index = (_index + 1) % _phrases.length);
+          _c.forward(from: 0);
+        }
+      });
+    _c.forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  static double _seg(double t, double a, double b) =>
+      Curves.easeOutCubic.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
+
+  @override
+  Widget build(BuildContext context) {
+    final style = GoogleFonts.outfit(
+      color: Colors.white,
+      fontSize: 15,
+      fontWeight: FontWeight.w500,
+      fontStyle: FontStyle.italic,
+      letterSpacing: 0.2,
+      height: 1.35,
+    );
+
+    // Reduced motion: the first phrase, still, at reading opacity.
+    if (MediaQuery.of(context).disableAnimations) {
+      return Opacity(
+        opacity: 0.8,
+        child: Text(_phrases.first, textAlign: TextAlign.center, style: style),
+      );
+    }
+
+    final words = _phrases[_index].split(' ');
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320, minHeight: 22),
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) {
+          final t = _c.value;
+          final out = 1 - _seg(t, 0.86, 0.98); // whole phrase fades out
+          // A light band crosses the phrase once it has settled.
+          final sweep = -0.4 + 1.8 * _seg(t, 0.38, 0.82);
+          return ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (r) => LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.6),
+                Colors.white,
+                Colors.white.withValues(alpha: 0.6),
+              ],
+              stops: [
+                (sweep - 0.25).clamp(0.0, 1.0),
+                sweep.clamp(0.0, 1.0),
+                (sweep + 0.25).clamp(0.0, 1.0),
+              ],
+            ).createShader(r),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 5,
+              runSpacing: 2,
+              children: [
+                for (var i = 0; i < words.length; i++)
+                  Builder(builder: (_) {
+                    final start = 0.03 + i * 0.055;
+                    final p = _seg(t, start, start + 0.16);
+                    return Opacity(
+                      opacity: (p * out).clamp(0.0, 1.0),
+                      child: Transform.translate(
+                        offset: Offset(0, 6 * (1 - p)),
+                        child: Text(words[i], style: style),
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

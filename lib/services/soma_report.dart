@@ -1,0 +1,431 @@
+import 'dart:typed_data';
+
+import 'package:qaad_sdk/qaad_sdk.dart';
+
+/// One subject on a scanned report card, reduced to what the chat needs.
+class SomaSubject {
+  const SomaSubject({
+    required this.name,
+    required this.annualTotal,
+    required this.annualMax,
+    required this.termPercents,
+  });
+
+  final String name;
+  final int annualTotal;
+  final int annualMax;
+  final List<double> termPercents;
+
+  /// Raw yearly percentage. Some cards encode impossible maxima, so callers
+  /// should use [displayPercent] for anything a parent sees.
+  double get percent => annualMax == 0 ? 0 : (annualTotal / annualMax) * 100;
+
+  double get displayPercent => percent.clamp(0, 100).toDouble();
+
+  String get grade => SomaReport.gradeFor(displayPercent);
+
+  String get shortName => SomaReport.shortSubject(name);
+}
+
+/// A school report card decoded from the QR code Soma scans.
+///
+/// The QR carries a base-101 compressed list of tokens. [Comp.decompress]
+/// turns it back into tokens, and [DataAttention] maps the tokens to the
+/// student, school and marks.
+class SomaReport {
+  SomaReport._({
+    required this.payload,
+    required this.rawMarks,
+    required this.studentName,
+    required this.studentId,
+    required this.schoolName,
+    required this.district,
+    required this.schoolPhone,
+    required this.headTeacher,
+    required this.subjects,
+    required this.conductMarks,
+    required this.conductMax,
+    required this.overallPercent,
+    required this.decision,
+  });
+
+  final Uint8List payload;
+
+  /// The raw token list the marks were built from. Kept so the PDF report can
+  /// be regenerated later from the same scan.
+  final List<dynamic> rawMarks;
+
+  final String studentName;
+  final String studentId;
+  final String schoolName;
+  final String district;
+  final String schoolPhone;
+  final String headTeacher;
+  final List<SomaSubject> subjects;
+  final List<int> conductMarks;
+  final int conductMax;
+  final double overallPercent;
+  final String decision;
+
+  // ── decode ──────────────────────────────────────────────────────────────
+
+  static SomaReport decode(Uint8List payload) {
+    final tokens = Comp.decompress(payload);
+    if (tokens.isEmpty) {
+      throw const FormatException('The report QR code was empty.');
+    }
+
+    final attention = DataAttention(data: tokens);
+    final raw = attention.layer_2();
+    final rawMarks = attention.smData(attention.layer_1());
+
+    final student = _asMap(raw['student_data']);
+    final school = _asMap(raw['school_data']);
+    final marks = _asMap(raw['student_marks']);
+    final conduct = _asMap(marks['conduct_marks']);
+    final subjectsAlloc = _asMap(_asMap(marks['subject_marks'])['subjects_alloc']);
+
+    final subjects = <SomaSubject>[];
+    for (final entry in subjectsAlloc.entries) {
+      final subject = _asMap(entry.value);
+      if (subject.isEmpty) continue;
+      final terms = <double>[];
+      var annualTotal = 0;
+      var annualMax = 0;
+      for (final key in const ['term_1', 'term_2', 'term_3']) {
+        final term = _asMap(subject[key]);
+        final termPercent = _percent(_first(term['block_7']));
+        final termTotal = _int(_first(term['block_6']));
+        final termMax = _int(_first(term['block_3']));
+        terms.add(termPercent);
+        annualTotal += termTotal;
+        annualMax += termMax > 0
+            ? termMax
+            : (termPercent > 0
+                ? ((termTotal / termPercent) * 100).round()
+                : 180);
+      }
+      subjects.add(
+        SomaSubject(
+          name: entry.key.toString(),
+          annualTotal: annualTotal,
+          annualMax: annualMax <= 0 ? 180 : annualMax,
+          termPercents: terms,
+        ),
+      );
+    }
+
+    if (subjects.isEmpty) {
+      throw const FormatException('No marks were found on this report card.');
+    }
+
+    final grandMax = subjects.fold<int>(0, (sum, s) => sum + s.annualMax);
+    final grandTotal = subjects.fold<int>(0, (sum, s) => sum + s.annualTotal);
+    final overall =
+        grandMax == 0 ? 0.0 : (grandTotal / grandMax * 100).clamp(0, 100).toDouble();
+
+    final conductList = (conduct['marks'] as List?)
+            ?.map((e) => _int(e))
+            .toList() ??
+        const <int>[];
+
+    return SomaReport._(
+      payload: payload,
+      rawMarks: rawMarks,
+      studentName: _prettyName(student['fullname']?.toString() ?? ''),
+      studentId: student['studentid']?.toString() ?? '',
+      schoolName: school['school_name']?.toString() ?? '',
+      district: school['school_district']?.toString() ?? '',
+      schoolPhone: school['school_phonenumber']?.toString() ?? '',
+      headTeacher: school['director_name']?.toString() ?? '',
+      subjects: subjects,
+      conductMarks: conductList,
+      conductMax: _int(conduct['max']),
+      overallPercent: overall,
+      decision: overall >= 50 ? 'PROMOTED' : 'REPEAT',
+    );
+  }
+
+  // ── derived views ───────────────────────────────────────────────────────
+
+  String get overallGrade => gradeFor(overallPercent);
+
+  double get conductAverage {
+    if (conductMarks.isEmpty || conductMax == 0) return 0;
+    final total = conductMarks.fold<int>(0, (sum, mark) => sum + mark);
+    return (total / conductMarks.length).clamp(0, conductMax).toDouble();
+  }
+
+  List<SomaSubject> get strengths {
+    final sorted = [...subjects]
+      ..sort((a, b) => b.displayPercent.compareTo(a.displayPercent));
+    return sorted.where((s) => s.displayPercent >= 60).take(2).toList();
+  }
+
+  List<SomaSubject> get needsSupport {
+    final sorted = [...subjects]
+      ..sort((a, b) => a.displayPercent.compareTo(b.displayPercent));
+    return sorted.where((s) => s.displayPercent < 60).take(2).toList();
+  }
+
+  String get summary {
+    final strengthsText = strengths.map((s) => s.shortName).join(' na ');
+    final needsText = needsSupport.map((s) => s.shortName).join(' na ');
+    if (strengths.isEmpty && needsSupport.isEmpty) {
+      return 'Raporo yarangiye neza. Komeza umushyigikire mu masomo ye.';
+    }
+    if (strengths.isEmpty) {
+      return 'Amanota ari hagati ya 50 na 60. '
+          'Tuzamufasha cyane mu $needsText.';
+    }
+    if (needsSupport.isEmpty) {
+      return 'Komeza umushyigikire: yagaragaje imbaraga mu $strengthsText.';
+    }
+    return 'Yagaragaje imbaraga mu $strengthsText. '
+        'Tuzamufasha cyane mu $needsText.';
+  }
+
+  /// Two or three practical lessons a parent can do at home, chosen from the
+  /// subjects that need the most support (or from the strengths when every
+  /// subject is already above the line).
+  List<String> homeTips(String language) {
+    final rw = language == 'rw';
+    final focus = needsSupport.isEmpty
+        ? strengths.take(1).toList()
+        : needsSupport;
+    final tips = <String>[
+      for (final subject in focus) _tipFor(subject.shortName, rw),
+    ];
+    if (tips.length < 2) {
+      tips.add(rw
+          ? 'Mufashe gusubiramo amasomo mu minota 15 buri munsi.'
+          : 'Help them revise for 15 minutes every day.');
+    }
+    if (tips.length < 3) {
+      tips.add(rw
+          ? 'Mushimire imbaraga ashyiraho kandi muganire n\'umwarimu.'
+          : 'Praise the effort and talk with the teacher.');
+    }
+    return tips.take(3).toList();
+  }
+
+  /// A short, warm line Soma says before the deeper explanation.
+  String introMessage(String language) {
+    final name = studentName.isEmpty ? 'umwana wawe' : studentName;
+    final school = schoolName.isEmpty ? 'ishuri' : schoolName;
+    final pct = overallPercent.toStringAsFixed(1);
+    switch (language) {
+      case 'rw':
+        return 'Namaze gusoma raporo ya $name yo ku ishuri rya $school. '
+            'Yabonye $pct% muri rusange (icyiciro $overallGrade). '
+            'Reka turebe ibyo yakoze neza, ibyo twamufasha kunoza, '
+            'n\'amasomo y\'ingenzi mwakorera mu rugo.';
+      case 'fr':
+        return 'J\'ai lu le bulletin de $name à $school. '
+            'Sa moyenne générale est de $pct% (note $overallGrade). '
+            'Regardons ensemble ses points forts, les matières à soutenir '
+            'et des activités à faire à la maison.';
+      default:
+        return 'I just read $name\'s report card from $school. '
+            'The overall result is $pct% (grade $overallGrade). '
+            'Let\'s look at the strengths, the subjects to support, '
+            'and simple lessons you can do at home.';
+    }
+  }
+
+  /// The prompt sent to the Soma agent so it can talk about the report and
+  /// suggest lessons. It carries a compact, human-readable copy of the data.
+  String agentPrompt(String language) {
+    final buffer = StringBuffer()
+      ..writeln('[SOMA REPORT CARD — just scanned by the parent]')
+      ..writeln('Use only the data below to talk about this child\'s report.')
+      ..writeln('Student: ${studentName.isEmpty ? 'Unknown' : studentName}')
+      ..writeln('School: $schoolName${district.isEmpty ? '' : ' ($district)'}')
+      ..writeln(
+          'Overall: ${overallPercent.toStringAsFixed(1)}% (grade $overallGrade)')
+      ..writeln('Decision: $decision')
+      ..writeln(
+          'Conduct: ${conductAverage.toStringAsFixed(0)} / ${conductMax == 0 ? 40 : conductMax}')
+      ..writeln('Subjects:');
+    for (final subject in subjects) {
+      final terms =
+          subject.termPercents.map((p) => p.clamp(0, 100).toStringAsFixed(1)).join(' / ');
+      buffer.writeln(
+          '- ${subject.shortName}: ${subject.displayPercent.toStringAsFixed(1)}% '
+          '(grade ${subject.grade}); terms $terms');
+    }
+    if (strengths.isNotEmpty) {
+      buffer.writeln(
+          'Strongest: ${strengths.map((s) => s.shortName).join(', ')}');
+    } else {
+      buffer.writeln(
+          'No subject is above 60 yet; praise the effort and the best '
+          'relative subject.');
+    }
+    if (needsSupport.isNotEmpty) {
+      buffer.writeln(
+          'Needs support: ${needsSupport.map((s) => s.shortName).join(', ')}');
+    }
+    buffer
+      ..writeln()
+      ..writeln('Reply to the parent in their language. Be warm and practical:')
+      ..writeln('1. Congratulate them and name one real strength (or praise '
+          'effort if none is above 60).')
+      ..writeln('2. Explain the overall result in simple words, no jargon.')
+      ..writeln('3. For the subjects that need support, give 2 practical '
+          'home lessons or activities.')
+      ..writeln('4. End with one short encouragement.')
+      ..writeln('Keep it under 160 words. Do not talk about money.');
+    return buffer.toString();
+  }
+
+  /// Everything the chat card needs, as plain values.
+  Map<String, dynamic> toUiMap([String language = 'rw']) => {
+        'student_name': studentName,
+        'student_id': studentId,
+        'school': schoolName,
+        'district': district,
+        'overall_percent': overallPercent,
+        'grade': overallGrade,
+        'decision': decision,
+        'conduct': conductAverage,
+        'conduct_max': conductMax == 0 ? 40 : conductMax,
+        'summary': summary,
+        'home_tips': homeTips(language),
+        'subjects': [
+          for (final subject in subjects)
+            {
+              'name': subject.name,
+              'short_name': subject.shortName,
+              'percent': subject.displayPercent,
+              'grade': subject.grade,
+              'terms': subject.termPercents
+                  .map((p) => p.clamp(0, 100).toDouble())
+                  .toList(),
+            },
+        ],
+        'strengths': [for (final s in strengths) s.shortName],
+        'needs_support': [for (final s in needsSupport) s.shortName],
+      };
+
+  /// Builds the full PDF report from the same scan.
+  Future<Uint8List> generatePdf() {
+    final primary = Primary(
+      schoolStudentData: {
+        'student_data': {
+          'fullname': studentName,
+          'studentid': studentId,
+        },
+        'school_data': {
+          'school_name': schoolName,
+          'school_district': district,
+          'school_phonenumber': schoolPhone,
+          'director_name': headTeacher,
+        },
+      },
+      data: rawMarks,
+    );
+    return primary.generateReportPdf();
+  }
+
+  // ── helpers ─────────────────────────────────────────────────────────────
+
+  static String _tipFor(String subject, bool rw) {
+    switch (subject) {
+      case 'Kinyarwanda':
+        return rw
+            ? 'Soma inkuru ngufi buri joro, hanyuma umubaze ibyo yumvise.'
+            : 'Read a short story every evening, then ask what they understood.';
+      case 'Mathematics':
+        return rw
+            ? 'Mukore imyitozo mike y\'ibiharuro buri munsi, muyongere buhoro.'
+            : 'Do a few maths exercises daily, adding new ones slowly.';
+      case 'English':
+        return rw
+            ? 'Muvuge interuro eshanu z\'icyongereza ku meza, cyangwa asome ijwi rirangira.'
+            : 'Say five English sentences at the table, or read aloud together.';
+      case 'French':
+        return rw
+            ? 'Mukoreshe interuro ngufi z\'igifaransa buri munsi, cyangwa mureke asome ijwi rirangira.'
+            : 'Practise short French sentences daily, or read aloud together.';
+      case 'Science':
+        return rw
+            ? 'Murebe video ngufi cyangwa muganire ku bidukikije nk\'amazi n\'ibimera.'
+            : 'Watch a short science video or talk about water and plants around you.';
+      case 'Social Studies':
+        return rw
+            ? 'Muganire ku byabaye mu gihugu n\'amateka y\'umuryango wawe.'
+            : 'Talk about current events and your family history together.';
+      case 'PE':
+        return rw
+            ? 'Mukore siporo ngufi hamwe buri munsi, nko kwiruka cyangwa kugenda.'
+            : 'Do a short activity together daily, like running or walking.';
+      case 'Creative Arts':
+        return rw
+            ? 'Mumufashe gushushanya cyangwa kuririmba buri cyumweru.'
+            : 'Draw or sing together every week.';
+      default:
+        return rw
+            ? 'Mufashe gusubiramo amasomo mu minota 15 buri munsi.'
+            : 'Help them revise for 15 minutes every day.';
+    }
+  }
+
+  static String gradeFor(double percent) {
+    if (percent >= 80) return 'A';
+    if (percent >= 75) return 'B';
+    if (percent >= 70) return 'C';
+    if (percent >= 65) return 'D';
+    if (percent >= 60) return 'E';
+    if (percent >= 50) return 'S';
+    return 'F';
+  }
+
+  static String shortSubject(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('kinyarwanda')) return 'Kinyarwanda';
+    if (lower.contains('mathematics') || lower.contains('math')) {
+      return 'Mathematics';
+    }
+    if (lower.contains('english')) return 'English';
+    if (lower.contains('french')) return 'French';
+    if (lower.contains('social studies')) return 'Social Studies';
+    if (lower.contains('science')) return 'Science';
+    if (lower.contains('physical education')) return 'PE';
+    if (lower.contains('creative arts')) return 'Creative Arts';
+    return name;
+  }
+
+  /// "InezaDeborah" → "Ineza Deborah"; leaves normal names alone.
+  static String _prettyName(String raw) {
+    if (raw.trim().isEmpty) return raw;
+    return raw
+        .replaceAllMapped(RegExp(r'(?<!^)(?=[A-Z])'), (match) => ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static Map<dynamic, dynamic> _asMap(dynamic value) {
+    if (value is Map) return value;
+    return const <dynamic, dynamic>{};
+  }
+
+  static dynamic _first(dynamic value) {
+    if (value is List) return value.isEmpty ? null : value.first;
+    return value;
+  }
+
+  static int _int(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double _percent(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(
+          value?.toString().replaceAll('%', '').trim() ?? '',
+        ) ??
+        0;
+  }
+}

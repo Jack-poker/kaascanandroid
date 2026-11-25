@@ -1,12 +1,12 @@
 bool isProduction = true; // be carefully or you waste time !
 // ignore: non_constant_identifier_names
 String get Base_Url => isProduction
-    ? "http://ssh.kaascan.com:8788" // this is set for production ready
+    ? "https://api.v0.kaascan.com" // this is set for production ready
     : "http://192.168.1.134:8002"; // for development and testing purposes only
 
 
 // ignore: non_constant_identifier_names
-String get Ws_Url => "wss://api.v3.kaascan.com";
+String get Ws_Url => "wss://api.v0.kaascan.com";
 
 // Default for "Floating Soma" (parents can switch it in Personalise Soma).
 // How the Soma robot tab behaves while another tab (Students, History) is open:

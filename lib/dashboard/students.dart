@@ -1123,13 +1123,17 @@ class _StudentsState extends State<Students> with TickerProviderStateMixin {
                         // Student List
                         _buildStudentList(),
                         const SizedBox(height: 32),
-                        // Savings (replaces the transaction history list)
+                        // Savings, then the student's transaction history.
                         if (studentId.isNotEmpty)
                           SavingsPreviewCard(
                             key: ValueKey('savings-$studentId'),
                             studentId: studentId,
                             studentName: studentName,
                           ),
+                        if (studentId.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          _buildHistorySection(),
+                        ],
                         const SizedBox(height: 40),
                       ],
                     ),

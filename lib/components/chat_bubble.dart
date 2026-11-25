@@ -7,6 +7,7 @@ import 'package:kaascan/components/found_student_card.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:kaascan/components/agentic_ui.dart';
+import 'package:kaascan/components/soma_report_card.dart';
 import 'package:kaascan/services/soma_audio.dart';
 import 'package:kaascan/widgets/cached_network_image_wrapper.dart';
 import 'package:kaascan/main.dart';
@@ -180,6 +181,11 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
   static const String _rebaToken = "[[REBA]]";
 
   bool get _hasRebaToken => widget.message.contains(_rebaToken);
+
+  /// A scanned report card travels in the response; it gets the rich card
+  /// instead of the small "Reba Report" chip.
+  bool get _hasReportSummary =>
+      widget.responseData?['_report_summary'] is Map;
 
   @override
   void initState() {
@@ -611,8 +617,23 @@ class _ChatBubbleState extends State<ChatBubble> with TickerProviderStateMixin {
                           )
                         : _buildTypewriterRichText(),
 
+                  //  A scanned report gets the full colourful card below.
+                  if (_hasReportSummary && _typewriterComplete)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: SomaReportCard(
+                        report: widget.responseData!['_report_summary'] as Map,
+                        onSeeReport: () {
+                          HapticFeedback.mediumImpact();
+                          widget.onActionTapped?.call("SHOW_REPORT_PDF");
+                        },
+                      ),
+                    ),
+
                   //  Special: "Reba Report" chip after typewriter completes
-                  if (_hasRebaToken && _typewriterComplete)
+                  if (_hasRebaToken &&
+                      _typewriterComplete &&
+                      !_hasReportSummary)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
                       child: GestureDetector(
