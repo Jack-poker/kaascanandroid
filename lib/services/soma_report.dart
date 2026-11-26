@@ -242,6 +242,29 @@ class SomaReport {
     }
   }
 
+  /// Compact context injected into chat history so follow-up questions can be
+  /// answered from the scanned report without showing it in the UI again.
+  String contextPrompt(String language) {
+    final buffer = StringBuffer()
+      ..writeln('[SOMA REPORT CARD — context from a scan in this chat]')
+      ..writeln('Use only this data to answer the parent\'s next question. '
+          'They already saw the full card. Answer one thing at a time.')
+      ..writeln('Student: ${studentName.isEmpty ? 'Unknown' : studentName}')
+      ..writeln('School: $schoolName');
+    for (final subject in subjects) {
+      buffer.writeln(
+          '- ${subject.shortName}: ${subject.displayPercent.toStringAsFixed(1)}% '
+          '(grade ${subject.grade}); strength: ${strengths.contains(subject)}');
+    }
+    buffer.writeln('Overall: ${overallPercent.toStringAsFixed(1)}%');
+    if (needsSupport.isNotEmpty) {
+      buffer.writeln(
+          'Needs support: ${needsSupport.map((s) => s.shortName).join(', ')}');
+    }
+    buffer.writeln('Reply in the parent\'s language, briefly and warmly.');
+    return buffer.toString();
+  }
+
   /// Status lines shown on the thinking robot while a report is being read.
   static const List<String> thinkingPhrases = [
     'Ndigusoma indanga manota',

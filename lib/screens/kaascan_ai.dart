@@ -612,19 +612,29 @@ class _KaascanState extends State<Kaascan> {
 
   /// The last few turns, oldest first, without the message being sent now.
   List<Map<String, String>> _recentHistory(ValuesProvider provider) {
+    final history = <Map<String, String>>[];
+    final report = _activeReport;
+    if (report != null) {
+      history.add({
+        "role": "user",
+        "text": report.contextPrompt(languageService.currentLanguageCode),
+      });
+    }
+
     final all = provider.messages;
-    if (all.length <= 1) return const [];
+    if (all.length <= 1) return history;
     final earlier = all.sublist(0, all.length - 1);
     final recent =
         earlier.length > 6 ? earlier.sublist(earlier.length - 6) : earlier;
-    return [
+    history.addAll([
       for (final m in recent)
         if (m.text.trim().isNotEmpty)
           {
             "role": m.isUser ? "user" : "ai",
             "text": m.text.length > 300 ? m.text.substring(0, 300) : m.text,
           },
-    ];
+    ]);
+    return history;
   }
 
   /// A chip, a child or an amount was tapped: send it as the next prompt.

@@ -54,6 +54,8 @@ void main() {
     expect(report.introMessage('rw'), contains('?'));
     expect(report.introMessage('rw'), isNot(contains('84.8')));
     expect(SomaReport.thinkingPhrases, contains('Ndigusoma indanga manota'));
+    expect(report.contextPrompt('rw'), contains('context from a scan'));
+    expect(report.contextPrompt('rw'), contains('French'));
     expect(report.topics('rw').map((t) => t['key']),
         ['marks', 'info', 'lessons']);
 
