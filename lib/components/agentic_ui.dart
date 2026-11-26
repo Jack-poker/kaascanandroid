@@ -133,6 +133,8 @@ class AgenticBlocks extends StatelessWidget {
         return _StudentCodeCard(block: block, onSend: onSend);
       case 'report_scan':
         return _ReportScanCard(block: block, onScan: onScanReport);
+      case 'report_topics':
+        return _ReportTopicsCard(block: block, onSend: onSend);
     }
     return null;
   }
@@ -1389,6 +1391,77 @@ class _ReportScanCard extends StatelessWidget {
   }
 
   String labelScan() => "Scan report card";
+}
+
+// ── report topics: the parent picks what to talk about ──────────────────────
+
+class _ReportTopicsCard extends StatelessWidget {
+  final Map<dynamic, dynamic> block;
+  final AgenticSend onSend;
+  const _ReportTopicsCard({required this.block, required this.onSend});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _str(block, 'title');
+    final rawTopics = block['topics'];
+    final topics = rawTopics is List ? rawTopics.whereType<Map>().toList() : <Map>[];
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.isNotEmpty) _CardTitle(title),
+          if (title.isNotEmpty) const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final topic in topics)
+                Material(
+                  color: _Palette.tint,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(100),
+                    side: BorderSide(color: _Palette.blue.withValues(alpha: 0.28)),
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(100),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onSend(_str(topic, 'message'), null);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.smart_toy_rounded,
+                            size: 16,
+                            color: _Palette.blue,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            _str(topic, 'label'),
+                            style: const TextStyle(
+                              color: _Palette.blue,
+                              fontFamily: _display,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── suggestion chips ────────────────────────────────────────────────────────

@@ -225,36 +225,58 @@ class SomaReport {
     return tips.take(3).toList();
   }
 
-  /// A short, warm line Soma says before the deeper explanation.
+  /// A short, playful invitation. The full report is already on the card —
+  /// the parent chooses what to talk about instead of being given everything.
   String introMessage(String language) {
     final name = studentName.isEmpty ? 'umwana wawe' : studentName;
-    final school = schoolName.isEmpty ? 'ishuri' : schoolName;
-    final pct = overallPercent.toStringAsFixed(1);
     switch (language) {
       case 'rw':
-        return 'Namaze gusoma raporo ya $name yo ku ishuri rya $school. '
-            'Yabonye $pct% muri rusange (icyiciro $overallGrade). '
-            'Reka turebe ibyo yakoze neza, ibyo twamufasha kunoza, '
-            'n\'amasomo y\'ingenzi mwakorera mu rugo.';
+        return 'Ehe, namaze gusoma indanga ya $name! 😊 Ushaka kureba iki cya mbere: '
+            'amanota, amakuru y\'ishuri, cyangwa inama zo mu rugo?';
       case 'fr':
-        return 'J\'ai lu le bulletin de $name à $school. '
-            'Sa moyenne générale est de $pct% (note $overallGrade). '
-            'Regardons ensemble ses points forts, les matières à soutenir '
-            'et des activités à faire à la maison.';
+        return 'J\'ai lu le bulletin de $name. Par quoi commençons-nous — '
+            'les notes, les détails de l\'école ou les activités à la maison ?';
       default:
-        return 'I just read $name\'s report card from $school. '
-            'The overall result is $pct% (grade $overallGrade). '
-            'Let\'s look at the strengths, the subjects to support, '
-            'and simple lessons you can do at home.';
+        return 'I just read $name\'s report card. What should we look at first — '
+            'the marks, the school notes, or the home lessons?';
     }
   }
 
-  /// The prompt sent to the Soma agent so it can talk about the report and
-  /// suggest lessons. It carries a compact, human-readable copy of the data.
+  /// Status lines shown on the thinking robot while a report is being read.
+  static const List<String> thinkingPhrases = [
+    'Ndigusoma indanga manota',
+    'Kureba amakuru',
+    'Kureba ibihembye byose',
+  ];
+
+  /// Topic chips shown under the intro so the parent can steer the chat.
+  List<Map<String, String>> topics(String language) {
+    switch (language) {
+      case 'fr':
+        return [
+          {'key': 'marks', 'label': 'Voir les notes', 'message': 'Parle-moi des notes.'},
+          {'key': 'info', 'label': 'Voir les détails', 'message': 'Kureba amakuru'},
+          {'key': 'lessons', 'label': 'Activités à la maison', 'message': 'Inama zo mu rugo'},
+        ];
+      case 'rw':
+        break;
+    }
+    return [
+      {'key': 'marks', 'label': 'Reba amanota', 'message': 'Mbwira amanota y\'umwana'},
+      {'key': 'info', 'label': 'Kureba amakuru', 'message': 'Kureba amakuru'},
+      {'key': 'lessons', 'label': 'Inama zo mu rugo', 'message': 'Inama zo mu rugo'},
+    ];
+  }
+
+  /// The prompt sent to the Soma agent. It carries a compact copy of the data
+  /// as CONTEXT ONLY — the app has already shown the full card, and the parent
+  /// asks about one thing at a time. Never dump everything in one answer.
   String agentPrompt(String language) {
     final buffer = StringBuffer()
       ..writeln('[SOMA REPORT CARD — just scanned by the parent]')
-      ..writeln('Use only the data below to talk about this child\'s report.')
+      ..writeln('The app already decoded and displayed this report in full. '
+          'Use the data below only to answer what the parent asks — never '
+          'repeat all of it at once.')
       ..writeln('Student: ${studentName.isEmpty ? 'Unknown' : studentName}')
       ..writeln('School: $schoolName${district.isEmpty ? '' : ' ($district)'}')
       ..writeln(
@@ -262,7 +284,7 @@ class SomaReport {
       ..writeln('Decision: $decision')
       ..writeln(
           'Conduct: ${conductAverage.toStringAsFixed(0)} / ${conductMax == 0 ? 40 : conductMax}')
-      ..writeln('Subjects:');
+      ..writeln('Subjects (context for follow-up questions):');
     for (final subject in subjects) {
       final terms =
           subject.termPercents.map((p) => p.clamp(0, 100).toStringAsFixed(1)).join(' / ');
@@ -284,14 +306,19 @@ class SomaReport {
     }
     buffer
       ..writeln()
-      ..writeln('Reply to the parent in their language. Be warm and practical:')
-      ..writeln('1. Congratulate them and name one real strength (or praise '
-          'effort if none is above 60).')
-      ..writeln('2. Explain the overall result in simple words, no jargon.')
-      ..writeln('3. For the subjects that need support, give 2 practical '
-          'home lessons or activities.')
-      ..writeln('4. End with one short encouragement.')
-      ..writeln('Keep it under 160 words. Do not talk about money.');
+      ..writeln('HOW TO REPLY (playful Soma robot, parent-led conversation)')
+      ..writeln('1. This first message: notice one genuine effort with a warm, '
+          'playful touch, then ask which part the parent wants to look at '
+          'first — marks, school details, or home lessons. Offer at most these '
+          'three choices in one short question.')
+      ..writeln('2. After that, answer ONLY the part they ask about. Give one '
+          'clear, encouraging insight and stop — let them ask the next thing. '
+          'Never list every subject or repeat the overall number unasked.')
+      ..writeln('3. "Amanota" = marks, "amakuru" = details, "ibihembye" = '
+          'remarks. Use the parent\'s own words. Celebrate small wins; if no '
+          'subject is above 60, praise effort instead of listing failures.')
+      ..writeln('4. Reply in the parent\'s language, under 90 words, no money '
+          'talk, no jargon. Act curious and delighted to figure it out together.');
     return buffer.toString();
   }
 
@@ -308,6 +335,7 @@ class SomaReport {
         'conduct_max': conductMax == 0 ? 40 : conductMax,
         'summary': summary,
         'home_tips': homeTips(language),
+        'topics': topics(language),
         'subjects': [
           for (final subject in subjects)
             {

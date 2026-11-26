@@ -209,12 +209,23 @@ class _KaascanState extends State<Kaascan> {
       "response": intro,
       "action_word": "reba",
       "action_message": "SHOW_REPORT_PDF",
+      "mood": "playful",
+      "thinking": SomaReport.thinkingPhrases,
+      "ui": [
+        {
+          "kind": "report_topics",
+          "title": language == 'en'
+              ? 'What would you like to know?'
+              : 'Ushaka kumenya iki?',
+          "topics": report.topics(language),
+        },
+      ],
       "_report_summary": report.toUiMap(language),
       "_report_payload": payload,
     });
 
-    // Let the agent talk about the report and suggest home lessons, right in
-    // the chat. The card above already shows the numbers; this adds the heart.
+    // Ask, don't dump: the card already shows every number. The agent invites
+    // the parent to pick a topic, then answers only what they ask.
     valuesProvider.updateWaitingask(true);
     SomaAudio.instance.onSend();
     try {
@@ -1557,12 +1568,16 @@ class _KaascanState extends State<Kaascan> {
                             (value.waiting_ask ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (index == value.messages.length) {
-                            return const Padding(
-                              padding: EdgeInsets.only(bottom: 8),
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
                               child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: TypingIndicator(
-                                    senderName: 'Somakadi AI'),
+                                  senderName: 'Somakadi AI',
+                                  phrases: _activeReport != null
+                                      ? SomaReport.thinkingPhrases
+                                      : null,
+                                ),
                               ),
                             );
                           }

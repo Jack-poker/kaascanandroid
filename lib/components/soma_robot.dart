@@ -761,6 +761,26 @@ class _SomaRobotLiveState extends State<SomaRobotLive> {
     _hadText = hasText;
   }
 
+  SomaMood _moodFromResponse(Map<dynamic, dynamic>? response) {
+    if (response == null) return SomaMood.no;
+    final mood = (response['mood'] ?? '').toString().toLowerCase();
+    switch (mood) {
+      case 'playful':
+      case 'happy':
+      case 'jump':
+        return SomaMood.jump;
+      case 'thinking':
+        return SomaMood.thinking;
+      case 'alert':
+      case 'concerned':
+        return SomaMood.alert;
+      case 'no':
+        return SomaMood.no;
+      default:
+        return SomaMood.yes;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ValuesProvider>();
@@ -772,7 +792,7 @@ class _SomaRobotLiveState extends State<SomaRobotLive> {
       _seenCount = messages.length;
       final last = messages.last;
       if (last.isAi) {
-        _reaction = last.askResponse != null ? SomaMood.yes : SomaMood.no;
+        _reaction = _moodFromResponse(last.askResponse);
         _reactionId++;
       }
     }

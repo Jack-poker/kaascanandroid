@@ -48,8 +48,14 @@ void main() {
     expect(report.strengths, isNotEmpty);
     expect(report.needsSupport, isNotEmpty);
     expect(report.toUiMap()['subjects'], isA<List>());
+    expect(report.toUiMap()['topics'], isA<List>());
     expect(report.agentPrompt('rw'), contains('Ineza Deborah'));
     expect(report.introMessage('rw'), contains('Ineza Deborah'));
+    expect(report.introMessage('rw'), contains('?'));
+    expect(report.introMessage('rw'), isNot(contains('84.8')));
+    expect(SomaReport.thinkingPhrases, contains('Ndigusoma indanga manota'));
+    expect(report.topics('rw').map((t) => t['key']),
+        ['marks', 'info', 'lessons']);
 
     final pdf = await report.generatePdf();
     expect(pdf, isNotEmpty);
